@@ -1,0 +1,394 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# Как устроен Интернет
+
+Протоколы Интернет, лекция 1
+
+Note:
+https://habr.com/ru/post/186282/
+				</section>
+
+				<section data-markdown>
+### Вопросы для проверки
+
+* IP-адрес в интернете уникален?
+* Пакеты туда-обратно идут по одним и тем же проводам?
+* Пакеты между двумя смартфонами в этой аудитории выйдут за предела города?
+				</section>
+
+				<section data-markdown>
+### Схема глобальной сети
+
+![Структура интернет](images/internet-1.svg)
+				</section>
+				
+				<section data-markdown>
+### Немного терминологии
+
+* ISP - Internet Service Provider
+* POP - Point of presence, точка присутствия
+* Last mile, последняя миля
+* Uplink
+* NAP, IX - network access point, internet exchange
+				</section>
+
+				<section data-markdown>
+### Сеть оператора связи / крупной организации
+
+* много маршрутизаторов
+* резервирование каналов
+* протоколы маршрутизации RIP/OSPF для построения таблиц маршрутизации
+				</section>
+
+				<section data-markdown>
+### Взаимоотношения между операторами связи
+
+* Операторы связи соединяются друг с другом, передают свой трафик соседям, и даже передают трафик от одного соседа другому транзитом
+* Кто кому какой трафик передаёт определяется межоператорскими соглашениями
+* Это чисто коммерческие взаимоотношения!
+				</section>
+
+				<section data-markdown>
+### Что не устраивает
+
+Можно ли применить RIP или OSPF для маршрутизации в масштабах Интернета?
+					
+1. OSPF – это Link State протокол,
+   маршрутизатор знает топологию всей сети.
+   Не стоит показывать лишние детали чужим
+2. В Интернете существует более 800 тыс. маршрутов.
+   Протоколы IGP не предназначены для обработки такого объема информации
+					</section>
+
+					<section data-markdown>
+### Автономные системы
+
+Настоящий Интернет состоит из автономных систем и связей между ними
+
+Autonomous System, AS -
+совокупность сетей под единым административным управлением, обеспечивающим общую для всех входящих в автономную систему маршрутизаторов политику маршрутизации
+				</section>
+
+				<section data-markdown>
+### Технические определения
+* AS – множество маршрутизаторов с единым техническим администрированием,
+  использующих один протокол внутренней маршрутизации (IGP)
+  и единую метрику для маршрутизации пакетов внутри AS,
+  а для передачи пакетов в другие автономные системы применяющих
+  протокол внешней маршрутизации (EGP)
+				</section>
+
+				<section data-markdown>
+* AS – группа из одного или нескольких префиксов IP,
+  работающих у одного или нескольких сетевых операторов,
+  которые имеют единую (SINGLE) и четко определенную
+  (CLEARLY DEFINED) политику маршрутизации
+* При обмене маршрутной информацией каждая AS идентифицируется уникальным номером
+
+Note:
+RFC 4271 "A Border Gateway Protocol 4 (BGP-4)"
+				</section>
+
+				<section data-markdown>
+### Классификация AS
+
+* Stub (тупиковая) – имеющая соединение только с одной AS
+* Multihomed - соединенная с несколькими AS, но не принимающая транзитный трафик
+* Транзитная – соединенная с множеством других AS и предназначенная
+  (с некоторыми ограничениями на уровне политики) для поддержки как
+  локального, так и транзитного трафика
+				</section>
+
+				<section data-markdown>
+### Количество AS
+
+![Cumulative IANA AS block allocations per RIR](http://www.potaroo.net/tools/asn32/fig25.png)
+
+[potaroo.net/tools/asn32](http://www.potaroo.net/tools/asn32/)
+
+				</section>
+
+				<section data-markdown>
+### Расстояние между AS
+
+Между автономной системой в Китае и России тысячи километров ?
+
+Размер (физический) линка между AS очень маленький — десятки сантиметров, иногда метры
+
+Если линк 10 000 километров (и висит на столбах), кто бы за этими столбами ухаживал, поливал их, подпирал и привязывал к проводам? 
+				</section>
+
+				<section data-markdown>
+### Магистральные операторы
+
+Автономная система физически - тысячи и тысячи километров оптики (медь умерла)
+
+Операторы Tier-1, «магистральные операторы»
+* Ростелеком
+* МегаФон
+* МТС
+* ВымпелКом
+* ТрансТелеКом
+* и другие
+				</section>
+
+				<section data-markdown>
+### Точки обмена трафиком
+
+[wikipedia/List_of_Internet_exchange_points](https://en.wikipedia.org/wiki/List_of_Internet_exchange_points)
+
+* Москва (MSK-IX и др.)
+* Санкт-Петербург (GE-CIX и др.)
+* Краснодар, Нижний Новгород, Ростов-на-дону, Самара, Ульяновск, Ярославль
+* Екатеринбург, Челябинск
+* Красноярск, Омск, Владивосток
+					
+				</section>
+
+				<section data-markdown>
+### Border Gateway Protocol (BGP v4)
+
+Общие характеристики BGP4 по RFC 4271
+
+* Основная функция - обмен информацией о доступности сетей с другими системами BGP
+* поддержка CIDR (сеть/маска)
+* поддержка объединения маршрутов
+* поддержка только парадигмы пересылки на основе адреса получателя
+  * маршрут туда и обратно может принципиально отличаться, почему?
+* использует протокол TCP/179
+				</section>
+
+				<section data-markdown>
+### BGP full view
+
+это полная таблица маршрутов Интернет
+
+![Growth of the BGP Table - 1994 to Present](images/bgp-active.png)
+
+Note:
+http://bgp.potaroo.net/
+				</section>
+					
+				<section data-markdown>
+### Looking glass
+
+сервис проверки маршрутизации из удалённой AS,
+напр. [msk-ix.ru/network/lookingglass.html](http://www.msk-ix.ru/network/lookingglass.html)
+
+![пример обращения к сервису Looking glass на MSK-IX](images/looking-glass-1.png)
+				</section>
+
+				<section data-markdown>
+### BGPlay
+
+[stat.ripe.net/widget/bgplay](https://stat.ripe.net/widget/bgplay),
+[пример для AS УрФУ](https://stat.ripe.net/widget/bgplay#w.resource=AS44868)
+
+![пример для AS УрФУ 44868](images/bgplay.png)
+
+				</section>
+
+				<section data-markdown>
+## Управление интернетом
+
+[icann.org/resources/files/governance-2013-02-06-ru](https://www.icann.org/resources/files/governance-2013-02-06-ru)
+
+![кто управляет интернетом](images/who-runs-the-internet.png)
+				</section>
+	
+				<section data-markdown>
+### Технические организации
+
+[IETF](https://ietf.org/), Internet Engineering Task Force
+* подготовка технических стандартов - RFC, Requests for Comments
+
+[ICANN](https://icann.org/), Internet Corporation for Assigned Names and Numbers
+выполняет функции [IANA](https://iana.org/), Internet Assigned Numbers Authority
+  * выделение IP-адресов
+  * выделение автономных систем
+  * выделение DNS-имен
+  * и т.п.
+				</section>
+
+
+				<section data-markdown>
+### LIR и RIR
+
+ISP получают IP-адреса и номера AS у локальных регистраторов (LIR, Local Internet registry)
+
+цена LIR = EUR 2000 и EUR 1400/год, см. [ripe-722](https://www.ripe.net/publications/docs/ripe-722)
+
+Более крупные - RIR, Regional Internet registry
+
+![Региональные интернет регистраторы](images/iana-rir.png)
+
+Note:
+(AFRINIC)[http://www.afrinic.net/) - Africa Region
+(APNIC)[http://www.apnic.net/]     - Asia/Pacific Region
+(ARIN)[http://www.arin.net/]       - Canada, USA, and some Caribbean Islands
+(LACNIC)[http://www.lacnic.net/]   - Latin America and some Caribbean Islands
+(RIPE NCC)[http://www.ripe.net/]   -Europe, the Middle East, and Central Asia
+				</section>
+
+				<section data-markdown>
+### Запрос к базе IANA / RIR
+
+RFC 3912,  WHOIS Protocol Specification 
+* текстовый протокол «запрос-ответ» (43/tcp)
+
+Примеры запросов
+* 93.88.179.200
+* AS44868
+
+ответы от RIR приходят в формате RFC 2622,  Routing Policy Specification Language (RPSL)
+				</section>
+
+				<section data-markdown>
+### пример ответа
+
+```
+% Information related to '93.88.176.0 - 93.88.179.255'
+
+% Abuse contact is 'p.a.varankin@urfu.ru'
+
+inetnum:        93.88.176.0 - 93.88.179.255
+netname:        SERVICES-NET
+descr:          Network for services S. Kovalevskoy 5
+descr:          Yekaterinburg, Russia
+country:        RU
+admin-c:        UN1597-RIPE
+tech-c:         UN1597-RIPE
+status:         ASSIGNED PA
+mnt-by:         URFU-MNT
+created:        2008-10-09T09:41:23Z
+last-modified:  2016-07-21T10:56:26Z
+source:         RIPE
+
+role:           URFU NOC
+address:        620083, Ekaterinburg, Turgeneva, 4
+admin-c:        PV6634-RIPE
+tech-c:         PV6634-RIPE
+abuse-mailbox:  p.a.varankin@urfu.ru
+nic-hdl:        UN1597-RIPE
+mnt-by:         URFU-MNT
+created:        2016-07-07T10:24:54Z
+last-modified:  2016-08-08T05:56:10Z
+source:         RIPE # Filtered
+
+% Information related to '93.88.176.0/20AS44868'
+route:          93.88.176.0/20
+descr:          Ural Federal University
+origin:         AS44868
+mnt-by:         URFU-MNT
+created:        2008-03-25T15:40:45Z
+last-modified:  2016-07-21T10:58:40Z
+source:         RIPE
+```
+				</section>
+
+				<section data-markdown>
+### Пример работы с whois
+
+```python3
+#!/usr/bin/env python3
+
+import socket
+
+HOST = "whois.ripe.net"
+PORT = 43
+
+s = socket.create_connection((HOST, PORT))
+s.sendall(b'AS44868\r\n')
+
+while True:
+  buf = s.recv(1024).decode("utf-8")
+  if len(buf) == 0:
+    break
+  print(buf)
+```
+				</section>
+
+				<section data-markdown>
+### Registration Data Access Protocol (RDAP)
+
+Плановая замена старого протокола, подробнее - [icann.org/rdap](https://www.icann.org/rdap)
+* стандартный API
+* запросы по HTTP
+* ответы в формате RFC 7483, JSON Responses for the Registration Data Access Protocol (RDAP)
+				</section>
+
+				<section data-markdown>
+## Стандарты интернета
+
+Курс использует только технические стандарты протоколов интернет -
+RFC, Request for Comments
+
+RFC - пример **открытой** системы стандартов
+
+Где взять?
+* [rfc-editor.org](https://www.rfc-editor.org/)
+* [datatracker.ietf.org](https://datatracker.ietf.org/)
+				</section>
+
+				<section data-markdown>
+### Процедура и статусы
+
+описана в RFC 2026 (BCP 9)
+
+* Internet-Drafts
+* Standards 
+  * Proposed Standard
+  * Draft Standard
+  * Standard
+* Non-Standards
+  * Experimental
+  * Informational
+  * Historic
+				</section>
+
+				<section data-markdown>
+### Отдельные категории RFC
+
+RFC около 9 000, а черновиков - около 30 000
+
+Список особо важных RFC поддерживается отдельно
+* Standard (STD)
+* Best Current Practices (BCP)
+* For Your Information (FYI)
+
+1 апреля выходит «похожий на правду» RFC
+				</section>
+
+				<section data-markdown>
+## Вопросы?
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
