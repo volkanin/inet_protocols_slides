@@ -1,0 +1,712 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+		<style type="text/css">.reveal blockquote { font-size: 50%; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# Имена в Интернете
+
+## Domain Name System
+
+Протоколы Интернет, лекция 2
+				</section>
+
+				<section data-markdown>
+### План
+
+> - Что это ты там бормочешь? - спросил Шалтай, впервые прямо взглянув на нее. - Скажи-ка мне лучше, как тебя зовут и зачем ты сюда явилась.
+> - Меня зовут Алиса, а...
+> - Какое глупое имя, - нетерпеливо прервал ее Шалтай-Болтай. - Что оно значит?
+> - Разве имя должно что-то значить? – проговорила Алиса с сомнением.
+> - Конечно, должно, - ответил Шалтай-Болтай и фыркнул.
+
+* Системы имён
+* Как выбирать имена
+* Структура DNS
+* Разрешение (поиск значения) имён
+* Хранение данных на сервере
+				</section>
+
+				<section data-markdown>
+## Системы имён
+				</section>
+				
+				<section data-markdown>
+### Необходимость имён
+
+* 7 ± 2 — Джордж Миллер (Bell Labs)
+* Кратковременная память - в среднем 
+  - девять двоичных чисел, 
+  - восемь десятичных чисел, 
+  - семь букв алфавита,
+  - пять односложных слов
+
+* Увеличивается за счёт группировки объектов (Chunking): 
+  ФСБКМСМЧСЕГЭ
+				</section>
+
+				<section data-markdown>
+### Пространство имён
+
+Namespace - модель, созданная для логической группировки уникальных идентификаторов (имён)
+* Идентификатор, определенный в пространстве имён, ассоциируется с этим пространством
+* Один и тот же идентификатор может быть независимо определён в нескольких пространствах
+				</section>
+
+				<section data-markdown>
+### Свойства пространства имён
+
+* Размер (длина имени) и максимальное количество имён
+* Правила написания (синтаксис) и валидность
+* Архитектура пространства и семантика
+				</section>
+
+				<section data-markdown>
+### Архитектура пространства имён
+
+| Плоская                              | Иерархическая                                |
+|---                                   |---                                           |
+| ![](images/ns-architecture-flat.png) | ![](images/ns-architecture-hierarchical.png) |
+				</section>
+
+				<section data-markdown>
+### Ономатет. Схема именования
+
+* Или **как выбрать имя серверу**?
+* RFC 1178 «Choosing a Name for Your Computer»
+* RFC 2100 «The Naming of Hosts»
+
+* [habr.com/post/93423](https://habr.com/ru/post/93423/) - Именование узлов в сети
+
+* [namingschemes.com](http://namingschemes.com) — источник названий
+				</section>
+
+				<section data-markdown>
+### Как планировать название
+
+* Определитесь с размером нумерации.
+  Возможно, всё обойдётся s1-s5 для серверов и парочкой устройств r1-r2
+* Выпишите все существующие названия и аббревиатуры,
+  попытайтесь продумать их на хотя бы полгода в будущее
+  и представьте себе появление такого же, но в другом здании
+				</section>
+
+				<section data-markdown>
+* Можете ли переименовывать устройства? 
+  Маршрутизатор? Почтовый сервер? Контроллер домена?
+  Файловый сервер, на который у всех ссылки?
+* Сделайте пару десятков названий, посмотрите, читаемы ли они
+  (т.е. понятно ли «что это»), попробуйте напечатать
+* Нет ли в именах лишней информации (лучше уточнить у начальства, что есть «конфиденциальная» — имя фирмы, город, адрес, номер филиала)
+				</section>
+
+				<section data-markdown>
+## Система имён DNS - Domain Name System
+				</section>
+
+				<section data-markdown>
+### Предыстория 
+
+![Схема ARPANet 1970 - 1972](images/ns-arpanet-1.png)
+				</section>
+
+				<section data-markdown>
+![Схема ARPANet 1977](images/ns-arpanet-2.png)
+				</section>
+
+				<section data-markdown>
+### HOSTS.TXT
+
+* Вся информация по узлам, в т.ч. для взаимных преобразований имен и адресов узлов ARPAnet, -
+  единственный файл HOSTS.TXT
+* Отвечал Сетевой информационный центр (NIC, Network Information Center)
+  Стэнфордского исследовательского института (SRI, Stanford Research Insitute)
+* RFC 952 — DoD INTERNET HOST TABLE SPECIFICATION
+				</section>
+
+				<section data-markdown>
+### HOSTS.TXT
+
+```
+NET : 10.0.0.0 : ARPANET :
+NET : 128.10.0.0 : PURDUE-CS-NET :
+GATEWAY : 10.0.0.77, 18.10.0.4 : MIT-GW.ARPA,MIT-GATEWAY : PDP-11 :
+		  MOS : IP/GW,EGP :
+HOST : 26.0.0.73, 10.0.0.51 : SRI-NIC.ARPA,SRI-NIC,NIC : DEC-2060 :
+	   TOPS20 :TCP/TELNET,TCP/SMTP,TCP/TIME,TCP/FTP,TCP/ECHO,ICMP :
+HOST : 10.2.0.11 : SU-TAC.ARPA,SU-TAC : C/30 : TAC : TCP 
+```
+* Проблемы:
+  - Нагрузка на сеть
+  - Конфликты имен
+  - Синхронизация
+  - Невозможность масштабирования
+				</section>
+
+				<section data-markdown>
+### DNS - Domain Name System
+
+* RFC 1034 - Domain names - concepts and facilities
+* RFC 1035 - Domain names - implementation and specification
+  - Пол Мокапетрис / Paul Mockapetris, 1987
+
+* Иерархическая распределённая структура + делегирование
+* Сервер
+* Клиент (resolver)
+				</section>
+
+				<section data-markdown>
+### Ключевые характеристики DNS
+
+* Распределённость администрирования
+  - Ответственность за разные части структуры несут разные люди
+* Распределённость хранения
+  - Каждый узел сети в обязательном порядке должен хранить только те данные, которые входят в его зону ответственности (**authority**)
+				</section>
+
+				<section data-markdown>
+* Кеширование информации
+  - Узел может временно хранить данные не из своей зоны для уменьшения нагрузки на сеть
+* Иерархическая структура
+  - Все узлы объединены в дерево, каждый узел или сам определяет работу нижестоящих узлов,
+    или делегирует (передает) другим узлам
+* Резервирование
+  - За хранение и обслуживание своих узлов отвечают несколько серверов
+				</section>
+
+				<section data-markdown>
+### Доменное имя
+
+__www . ya . ru__
+* ru - домен 1го уровня,
+  TLD – Top Level Domain
+* ya - домен 2го уровня
+* www - домен 3го уровня, 
+  (фактически — конечная запись, RR, Resource Record)
+
+Регистр значения не имеет
+
+Алфавит: a-z, 0-9, дефис (-), подчеркивание (_)
+				</section>
+
+				<section data-markdown>
+### FQDN - Fully Qualified Domain Name 
+
+* Полностью определённое имя домена, т.е.
+  не имеющее неоднозначностей
+* Включает в себя имена всех родительских доменов иерархии
+* FQDN завершаются точкой, включают корневое доменное имя, которое является безымянным
+  - www.ya.ru.
+* Длина FQDN <= 255 байт, с ограничением 63 байта на каждое имя домена
+				</section>
+
+				<section data-markdown>
+### Нет никакой точки
+
+Если в конце FQDN точка не указана, то
+* веб-браузерами и т.п. точка подразумевается (сама добавляется)
+* имя считается относительным, дополнением к существующем домену
+
+```
+lsv@home:~$ ping -n www
+ping: www: Имя или служба не известны
+```
+
+```
+lsv@spica:~$ ping -n www
+PING www.usaaa.ru (79.172.6.193) 56(84) bytes of data.
+64 bytes from 79.172.6.193: icmp_seq=1 ttl=64 time=0.025 ms
+```
+				</section>
+
+				<section data-markdown>
+### Дело о пропущенной точке
+
+http://lenta.ru/news/2009/10/14/se/
+
+13 октября 2009 года из-за пропущенной точки в скрипте обновления зоны .se (Швеция)
+более 900 тысяч доменных имён оказались недоступны, 
+т.к. зона se стала доменом второго уровня, а не первого (se.)
+				</section>
+
+				<section data-markdown>
+### Домены верхнего уровня
+
+RFC 2606 — Reserved Top Level DNS Names
+  * example.com/.org/.net, .test, .invalid и др.
+
+Общие домены верхнего уровня (gTLD)
+* Изначально .com, .edu, .gov, .mil, .net, .org, .int
+* Без регистрационных ограничений - .com, .net, .org, .info, .biz, .name и др.
+* На конференции ICANN в 2011 г. принята программа New gTLD,
+  юридические лица могут получить gTLD
+  - .yandex, .google
+				</section>
+
+				<section data-markdown>
+### Домены верхнего уровня
+
+Национальные, географические домены (ccTLD), по кодам ISO 
+* .ru и другие
+* .uk, .su
+* .am, .io, .me, .to, .tv
+
+Интернационализованные домены (IDN)
+
+Технические (in-addr.arpa)
+				</section>
+
+				<section data-markdown>
+### 63 символов хватит ?
+
+llanfairpwllgwyngyllgogerychwyrndrobwyll-llantysiliogogogoch.com — название деревни Лланвайр-Пуллгвингилл в Уэльсе на острове Англси, означающее «Церковь Святой Марии в ложбине, заросшей белым орешником, около быстрого водоворота, неподалёку от церкви Святого Тисилио и красной пещеры»
+
+zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz.ru — «самый последний домен Рунета»
+				</section>
+
+				<section data-markdown>
+## Разрешение имён
+				</section>
+
+				<section data-markdown>
+### Разрешение имени
+
+Name resolution - поиск значения, связанного с идентификатором в пространстве имён
+
+Если речь идёт об имени узла в сети, чаще всего подразумевается процесс определения IP-адреса по имени
+* Услышу на экзамене такое определение - буду ругаться и снижать оценку
+
+Используются разные способы поиска в зависимости от системы имён, программной среды и протоколов
+				</section>
+
+				<section data-markdown>
+### Плоские имена (не DNS)
+
+В Novell NetWare, IBM OS/2 и старых Windows
+
+В NetBIOS алгоритм зависит от типа узла
+* широковещательные запросы (чаще)
+* WINS — Windows Internet Name Server
+
+| ![](images/ns-netbios-1.png) | ![](images/ns-netbios-2.png) |
+|---                                   |---                                           |
+				</section>
+
+				<section data-markdown>
+### Разрешение имён в DNS
+
+socket.gethostbyname(hostname)
+
+Resolver - часть операционной системы
+1. Посмотреть в кеш
+  - ipconfig /displaydns [W]
+2. Посмотреть собственное имя
+3. Посмотреть в локальной таблице имён
+  - /etc/hosts [U]
+  - %windir%\system32\drivers\etc\hosts [W]
+4. Спросить у сервера DNS
+  - /etc/resolv.conf [U]
+				</section>
+
+				<section data-markdown>
+### Применение hosts
+
+```
+# локальные имена
+127.0.0.1	localhost
+127.0.1.1	home
+
+# блокировка
+127.0.0.1	activate.adobe.com
+
+# переадресация полезная
+127.0.1.1	srv-db01
+127.0.1.1	srv-app01
+
+# переадресация вредная
+216.239.36.117	vk.com
+```
+				</section>
+
+				<section data-markdown>
+### Разрешение имён сервером DNS
+
+Клиентские запросы и ответы — 53/udp
+
+1. Посмотреть в кеш
+2. Посмотреть в локальной таблице имён (DNS zone, зона DNS)
+3. Если настроен, спросить у вышестоящего сервера (forwarder)
+4. Провести поиск начиная с корня системы имён — .
+				</section>
+
+				<section data-markdown>
+### Кеш сервера DNS
+
+Кешируются и отрицательные ответы тоже!
+
+Windows
+- ipconfig /flushdns (клиент)
+- dnscmd /ClearCache (сервер)
+- Clear-DnsServerCache в Powershell
+
+[How To Flush Linux / UNIX DNS Cache](www.cyberciti.biz/faq/rhel-debian-ubuntu-flush-clear-dns-cache/), варианты
+- sudo systemctl restart nscd
+- sudo systemctl restart dnsmasq
+- sudo rndc restart
+				</section>
+
+				<section data-markdown>
+## Описание зоны DNS
+				</section>
+
+				<section data-markdown>
+### DNS zone
+
+Зона — часть дерева доменных имен (включая ресурсные записи),
+размещаемая как единое целое на некотором DNS-сервере
+
+На практике для надёжности — одновременно на нескольких серверах
+
+Цель выделения части дерева в отдельную зону — передача ответственности за соответствующий домен другому лицу
+
+Это называется **делегированием**
+				</section>
+
+				<section data-markdown>
+### Authority
+
+Сервер, на котором размещены ресурсные записи какой-то зоны, называется ответственным (authority) за зону
+
+Ответы сервера на запросы о «своих» именах тоже авторитетные
+
+Если есть только часть записей (например, в кеше), то это неавторитетный сервер / ответ
+				</section>
+
+				<section data-markdown>
+### Зона и домен DNS
+
+![Зона и домен](images/ns-dnszone.png)
+				</section>
+
+				<section data-markdown>
+### И это моё... всё моё!!!
+
+На примере BIND в файле /etc/bind/named.conf
+```
+zone "usaaa.ru" {
+	type master;
+	file "/etc/bind/usaaa/usaaa.ru";	// произвольное
+};
+```
+или
+```
+zone "hackerdom.ru" {
+	type slave;
+	masters {212.193.68.254;};
+	file "/etc/bind/urfu/hackerdom.ru";
+};
+```
+				</section>
+
+				<section data-markdown>
+### Файл зоны DNS
+
+```
+< blank > [ < comment > ]
+$ORIGIN < domain-name > [< comment> ]
+$INCLUDE < file-name > [ < domain-name > ] [ < comment > ]
+< domain-name > < rr > [ < comment > ]
+< blank > < rr > [ < comment > ]
+```
+
+Содержимое RR-записи (Resource Record)
+```
+[ < TTL > ] [ < class > ] < type > < RDATA >
+[ < class > ] [ < TTL > ] < type > < RDATA >
+```
+
+```
+; комментарии
+```
+				</section>
+
+				<section data-markdown>
+### Пример
+
+```
+$ORIGIN .
+$TTL 7200		; 2 hours
+hackerdom.ru	IN SOA  ns.urgu.org. uzer.hackerdom.ru. (
+					2020021103 ; serial
+					7200       ; refresh (2 hours)
+					7200       ; retry (2 hours)
+					2419200    ; expire (4 weeks)
+					86400      ; minimum (1 day)
+				)
+			NS		ns.urgu.org.
+			NS		ns.usaaa.ru.
+			A		185.199.108.153
+			MX		1 ASPMX.L.GOOGLE.COM.
+			MX		5 ALT1.ASPMX.L.GOOGLE.COM.
+			TXT		"v=spf1 a include:_spf.google.com ~all"
+			SPF		"v=spf1 a include:_spf.google.com ~all"
+$ORIGIN hackerdom.ru.
+www			CNAME	hackerdom.ru.
+```
+				</section>
+
+				<section data-markdown>
+### Запись имён доменов
+
+zone "rucft.net"
+
+```
+| В файле написано 	| и это означает           	|
+|------------------	|--------------------------	|
+| www ( + $ORIGIN) 	| www.ructf.net.           	|
+| www.ructf.net    	| www.ructf.net.ructf.net. 	|
+| www.ructf.net.   	| www.ructf.net.           	|
+```
+
+Как добавить запись «без имени», т.е. совпадающую с доменом ?
+```
+$ORIGIN ructf.net.
+		A	 212.193.68.254
+```
+или
+```
+ructf.net. 	A	 212.193.68.254
+```
+				</section>
+
+				<section data-markdown>
+### Особенности описания RR 
+
+. — от корня
+
+@ — отдельно стоящий @ обозначает текущий суффикс по умолчанию (имя зоны)
+
+\DDD — восьмеричная запись произвольного символа
+
+(...) — скобки для группировки данных, которые записываются в несколько строк
+				</section>
+
+				<section data-markdown>
+### Поле TTL
+
+Time To Live – время в секундах, в течение которого запись сохраняется в кэше (32 бит)
+
+RFC1035: Если это поле TTL пусто, то по умолчанию принимается значение, указанное в параметре minimum поля данных записи SOA для данной зоны.
+
+RFC2308: директива управления $TTL, поле minimum - время негативного кэширования.
+				</section>
+
+				<section data-markdown>
+### поле TYPE
+
+* SOA (Start Of Authority) 
+* NS (Name Server) 
+* A (Address) 
+* MX (Mail eXchanger) 
+* CNAME (Canonical NAME) 
+* PTR (PoinTeR) 
+* WKS (Well Known Services) 
+* и другие типы записей
+				</section>
+
+				<section data-markdown>
+### поле CLASS
+
+Поле CLASS присутствует в записях ресурсов. Определены (RFC 1035, стр. 13)
+* IN 1: класс Интернет
+* CS 2: класс CSNET
+  - используется только в примерах устаревших документов RFC
+* CH 3: класс CHAOS
+* HS 4: класс Hesiod
+
+Я никогда не видел на практике классов, отличных от IN
+				</section>
+
+				<section data-markdown>
+## запись SOA
+
+Start of Authority — первая запись зоны
+
+```
+owner ttl class SOA source-dname mbox (
+	serial								; Очень важен !
+	refresh
+	retry
+	expire
+	minimum
+)
+```
+
+Пример
+```
+hackerdom.ru.	IN SOA  ns.urgu.org. uzer.hackerdom.ru. (
+					2020021103 ; serial
+					7200       ; refresh (2 hours)
+					7200       ; retry (2 hours)
+					2419200    ; expire (4 weeks)
+					86400      ; minimum (1 day)
+				)
+```
+				</section>
+
+				<section data-markdown>
+## запись NS
+
+Name Server - DNS-имя ответственного сервера (не IP-адрес)
+
+```
+owner ttl class NS name-server-dname
+```
+
+Примеры
+```
+volkanin.ru.	NS	dns1.yandex.net
+```
+
+```
+$ORIGIN urfu.ru.
+		NS	ns1.urfu.ru.
+		NS	ns2
+ns1		A	212.193.66.21
+ns2		A	93.88.176.11
+				</section>
+
+				<section data-markdown>
+### запись A / AAAA
+
+A - IPv4-адрес
+
+AAAA – IPv6-адрес
+
+```
+owner ttl class A address
+```
+				</section>
+
+				<section data-markdown>
+### запись CNAME
+
+Canonical name - ссылка на каноническое, общепринятое имя
+* заменяет все остальные типы записей
+
+```
+owner ttl class CNAME canonical-dname
+```
+
+Примеры
+```
+project	CNAME   pages.github.io.
+mail	CNAME	domain.mail.yandex.net.
+www		CNAME   hackerdom.ru.
+```
+
+[Github pages custom domain](https://help.github.com/en/github/working-with-github-pages/managing-a-custom-domain-for-your-github-pages-site)
+				</section>
+
+				<section data-markdown>
+### запись MX
+
+Mail exchanger - почтовый узел домена
+
+```
+owner ttl class MX preference exchange-dname
+```
+в значении несколько полей
+
+Пример
+```
+hackerdom.ru.	MX	1 aspmx.l.google.com.
+hackerdom.ru.	MX	5 alt1.aspmx.l.google.com.
+```
+Подробнее рассмотрим позже
+				</section>
+
+				<section data-markdown>
+### запись SRV
+
+Поиск параметров подключения по имени сервиса
+
+```
+owner ttl class SRV Priority Weight Port Target
+```
+
+Пример
+```
+_jabber._tcp.hackerdom.ru.
+		SRV	5 0 5269 xmpp-server.l.google.com.
+_xmpp-server._tcp.hackerdom.ru.
+		SRV	5 0 5269 xmpp-server.l.google.com.
+```
+
+Играет важную роль в корпоративных сетях
+				</section>
+
+				<section data-markdown>
+### запись PTR
+
+Обратное преобразование — из IP в имя
+
+Пример:
+```
+lsv@home:~$ ping vk.com
+PING vk.com (87.240.137.158) 56(84) bytes of data.
+64 bytes from srv158-137-240-87.vk.com (87.240.137.158): icmp_seq=1 ttl=54 time=32.9 ms
+```
+
+Специальный «технический» домен
+```
+158.137.240.87.in-addr.arpa. IN PTR srv158-137-240-87.vk.com
+```
+
+Почему байты IP-адреса в обратном порядке?
+				</section>
+
+				<section data-markdown>
+### Round-robin
+
+Если несколько записей одного типа для одного имени?
+
+```
+hackerdom.ru.	NS	ns.urgu.org.
+hackerdom.ru.	NS	ns.usaaa.ru.
+```
+
+* В ответе сервера будут все записи, но порядок будет меняться
+* Каждая запись по очереди будет на первом месте
+				</section>
+
+				<section data-markdown>
+# Вопросы ?
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
