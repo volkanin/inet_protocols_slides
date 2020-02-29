@@ -1,0 +1,792 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+		<style type="text/css">.reveal blockquote { font-size: 50%; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# Имена в Интернете
+
+## Domain Name System
+
+Протоколы Интернет, лекция 3
+				</section>
+
+				<section data-markdown>
+### План
+
+> Чтобы узнать, где колодец в деревне Гадюкино, ты сначала идешь к президенту, потом к губернатору
+
+* Формат сообщения DNS
+* Поиск информации в сети DNS
+* Корневые серверы
+* Альтернативный транспорт
+				</section>
+
+				<section data-markdown>
+### Где почитать
+
+RFC 1034, 1035 - основные концепции
+				</section>
+
+				<section data-markdown>
+### Формат сообщения DNS
+
+```
++-----------------------------------------------+
+|                                               |
+|             ЗАГОЛОВОК (12 байт)               |
+|                                               |
++-----------------------------------------------+
+|         ВОПРОСЫ (переменная длина)            |
++-----------------------------------------------+
+|         ОТВЕТЫ  (переменная длина)            |
++-----------------------------------------------+
+|    ОТВЕТСТВЕННЫЕ СЕРВЕРЫ (переменная длина)   |
++-----------------------------------------------+
+|    ДОПОЛНИТЕЛЬНЫЕ ЗАПИСИ (переменная длина)   |
++-----------------------------------------------+
+```
+
+Изначально суммарная длина <= 512 байт
+				</section>
+				
+				<section data-markdown>
+### Заголовок пакета (12 байт)
+
+```
+0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+|                      ID                       |
++-----------------------------------------------+
+|                     ФЛАГИ                     |
++-----------------------------------------------+
+|        QDCOUNT (количество вопросов)          |
++-----------------------------------------------+
+|        ANCOUNT (количество ответов)           |
++-----------------------------------------------+
+|        NSCOUNT (количество записей NS)        |
++-----------------------------------------------+
+|        ARCOUNT (количество доп.записей)       |
++-----------------------------------------------+
+```
+
+ID - идентификатор, определяющий одну серию запросов-ответов
+				</section>				
+
+				<section data-markdown>
+### Флаги
+
+```
+0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+|QR|   Opcode  |AA|TC|RD|RA|   Z    |   RCODE   |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+```
+
+* QR  — это запрос (0) или ответ (1)
+* Opcode (4 бита) — код операции клиента
+* AA — авторитетный ответ (1) или нет
+* TC — ответ обрезан (1)
+* RD — запрос рекурсивный (1)
+* RA — сервер поддерживает рекурсию (1)
+* Z (3 бит) — зарезервировано
+* RCODE (4 бит) — код ответа
+				</section>				
+
+				<section data-markdown>
+### Код ответа RCODE
+
+* 0 — NOERROR, выполнен без ошибок
+* 1 — FORMERR, сервер не понял запрос
+* 2 — SERVFAIL, некорректная работа
+* 3 — NXDOMAIN, запрошенное имя не существует в данном домене (при AA=1)
+* 4 — NOTIMP, сервер не может выполнить запрос данного типа
+* 5 — REFUSED, сервер не может выполнить запрос клиента из-за ограничений
+
+и другие
+				</section>				
+
+				<section data-markdown>
+### Формат раздела вопроса
+
+```
+0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
++-----------------------------------------------+
+|                                               |
+/        DNS-имя (переменная длина)             /
+|                                               |
++-----------------------------------------------+
+|        QTYPE (тип запроса)                    |
++-----------------------------------------------+
+|        QCLASS (класс запроса)                 |
++-----------------------------------------------+
+```
+
+имя www.urfu.ru закодируется:
+```
++---+---+---+---+---+---+---+---+---+---+---+---+---+
+| \3  w   w   w  \4   u   r   f   u  \2   r   u  \0 |
++---+---+---+---+---+---+---+---+---+---+---+---+---+
+```
+
+QTYPE - тип записи (1 - A, ..., 252 - AXFR, 255 - any)
+
+				</section>				
+
+				<section data-markdown>
+### Формат раздела ответа
+
+```
+0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+/        DNS-имя (переменная длина)             /
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+|                 TYPE (16 бит)                 |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+|                CLASS (16 бит)                 |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+|                      TTL                      |
+|                   (32 бит)                    |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+|              RDLENGTH (16 бит)                |
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--|
+/                     RDATA                     /
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+```
+содержимое ответа RDATA переменной длины RDLENGTH и определяется типом записи
+				</section>				
+
+				<section data-markdown>
+### Пример запроса
+
+```
+HEADER:
+000000  00 00                    ..             ID
+000002  01 00                    ..             Flags
+000004  00 01                    ..             QDCOUNT
+000006  00 00                    ..             ANCOUNT
+000008  00 00                    ..             NSCOUNT
+00000a  00 00                    ..             ARCOUNT
+        QUESTION:
+        Question for www.urfu.ru. of type A
+00000c  03 77 77 77 04 75 72 66  .www.urf       QNAME
+000014  75 02 72 75 00           u.ru.   
+000019  00 01                    ..             QTYPE
+00001b  00 01                    ..             QCLASS
+```
+				</section>				
+
+
+				<section data-markdown>
+### Сжатие DNS-имен
+
+Имена в запросе и ответе повторяются
+
+Всё доменное имя или суффикс заменяются ссылкой на предшествующее вхождение
+
+Указатель состоит из двух октетов
+```
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+| 1  1|   СМЕЩЕНИЕ (в байтах от начала пакета)  | = 0xC0..
++--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
+```
+Поэтому на длину имени остаётся 6 бит
+				</section>				
+
+				<section data-markdown>
+### Пример ответа
+
+```
+000000  00 00                    ..             ID
+000002  81 80                    ��             Flags
+000004  00 01                    ..             QDCOUNT
+000006  00 02                    ..             ANCOUNT
+000008  00 00                    ..             NSCOUNT
+00000a  00 00                    ..             ARCOUNT
+        QUESTION:
+00000c  03 77 77 77 04 75 72 66  .www.urf       QNAME
+000014  75 02 72 75 00           u.ru.   
+000019  00 01                    ..             QTYPE
+00001b  00 01                    ..             QCLASS
+        ANSWER:
+        www.urfu.ru. IN 3597 CNAME urfu.ru.
+00001d  c0 0c (СЖАТИЕ)           �.             NAME
+00001f  00 05                    ..             TYPE
+000021  00 01                    ..             CLASS
+000023  00 00 0e 0d              ....           TTL
+000027  00 09                    ..             RDLENGTH
+000029  04 75 72 66 75 02 72 75  .urfu.ru       RDATA
+000031  00                       .       
+        urfu.ru. IN 3597 A 93.88.179.200
+000032  c0 29                    �)             NAME
+000034  00 01                    ..             TYPE
+000036  00 01                    ..             CLASS
+000038  00 00 0e 0d              ....           TTL
+00003c  00 04                    ..             RDLENGTH
+00003e  5d 58 b3 c8              ]X��           RDATA
+
+www.urfu.ru. IN 3597 CNAME urfu.ru.
+urfu.ru.     IN 3597 A     93.88.179.200
+```
+Note:
+https://github.com/volkanin/inetsvcs/blob/master/nszoom.pl
+
+$ perl nszoom.pl -r -l www.urfu.ru
+				</section>
+
+				<section data-markdown>
+### Расширения DNS
+
+Числовые значения и расширения протокола:
+[iana.org/assignments/dns-parameters](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml)
+* DNS CLASSes
+* Resource Record (RR) TYPEs
+* DNS OpCodes
+* DNS RCODEs
+* AFSDB RR Subtype
+* DHCID RR Identifier Type Codes
+* DHCID RR Digest Type Codes
+* DNS Label Types
+* DNS EDNS0 Option Codes (OPT)
+* DNS Header Flags
+* EDNS Header Flags (16 bits)
+* EDNS version Number (8 bits)
+* Child Synchronization (CSYNC) Flags
+* Underscored and Globally Scoped DNS Node Names
+* DSO Type Codes
+				</section>
+
+				<section data-markdown>
+## Поиск информации в сети DNS
+				</section>				
+
+				<section data-markdown>
+### Вспомним алгоритм
+
+![](images/ns-client-resolve.svg)
+
+Resolver клиента следует типовой процедуре
+
+Работа сервера зависит от настроек, пересылка запроса - необязательна
+				</section>				
+
+				<section data-markdown>
+### Верно ли, что
+
+на последнем сервере в цепочке пересылки есть информация о всех записях в DNS ?
+
+ответы из кеша клиента неавторитетные, а ответы сервера всегда авторитетные?
+
+авторитетные ответы имеют приоритет над ответами из кеша?
+
+сервер не будет проводить поиск в DNS, если нашел ответ в кеше или локальной зоне?
+				</section>
+
+				<section data-markdown>
+					<script type="text/template">
+### Где правда?
+
+Получается, если наш сервер или сервер, которому переадресуются запросы, содержит зону google.com...
+
+Google: [home router dns attack](https://lmgtfy.com/?q=home+router+dns+attack)
+<!-- .element: class="fragment" -->
+
+Никто не мешает создать на своём сервере зону google.com
+<!-- .element: class="fragment" -->
+
+Но к ней никто не будет обращаться
+<!-- .element: class="fragment" -->
+
+Нужна «точка входа» в систему DNS
+<!-- .element: class="fragment" -->
+
+					</script>
+				</section>
+
+				<section data-markdown>
+### Где начать поиск
+
+```
+$ host -t ns .
+. name server a.root-servers.net.
+. name server b.root-servers.net.
+. name server c.root-servers.net.
+. name server d.root-servers.net.
+. name server e.root-servers.net.
+. name server f.root-servers.net.
+. name server g.root-servers.net.
+. name server h.root-servers.net.
+. name server i.root-servers.net.
+. name server j.root-servers.net.
+. name server k.root-servers.net.
+. name server l.root-servers.net.
+. name server m.root-servers.net.
+```
+				</section>
+
+				<section data-markdown>
+### В чем проблема?
+
+![Что раньше - курица или яйцо](images/egg-vs-hen.webp)
+				</section>				
+
+				<section data-markdown>
+### Начальная загрузка
+
+В составе DNS-сервера - файл подсказок
+```
+zone "." {
+	type hint;
+	file "/etc/bind/db.root";
+};
+```
+
+Внутри - знакомые записи, но без SOA
+```
+; last update:    February 17, 2016
+; related version of root zone:   2016021701
+;
+.                        3600000      NS    A.ROOT-SERVERS.NET.
+A.ROOT-SERVERS.NET.      3600000      A     198.41.0.4
+A.ROOT-SERVERS.NET.      3600000      AAAA  2001:503:ba3e::2:30
+```
+
+[internic.net/zones/named.root](https://www.internic.net/zones/named.root)
+				</section>
+
+				<section data-markdown>
+### Корневые серверы
+
+Центр технических операций - [www.root-servers.org](https://root-servers.org/), не .net !
+
+The 13 root name servers are operated by 12 independent organisations
+
+Система не статична, но меняется редко
+```
+August 10, 2017
+The IPv4 address for b.root-servers.net will be renumbered
+  to 199.9.14.201, effective 2017-10-24.
+The old IPv4 address (192.228.79.201) will continue
+  to answer queries for at least 6 month
+```
+				</section>
+				
+				<section data-markdown>
+### Корневые серверы
+
+Серверов свыше 1000!
+[Статистика](http://stats.dns.icann.org/)
+
+![](images/ns-root-servers.webp)
+				</section>				
+
+				<section data-markdown>
+### Пример поиска (1/3)
+
+Шаг 1 - запрос к корневому серверу
+
+```
+$ dig mx mail.ru. @l.root-servers.net.
+;; Sending:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 61689
+;; flags: rd; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;mail.ru.                       IN      MX
+
+;; QUERY SIZE: 25
+```
+
+По-настоящему вместо имени l.root-servers.net. возьмут IP-адрес из подсказок
+
+В примерах используются FQDN
+				</section>			
+
+				<section data-markdown>
+### Пример поиска (1/3)
+
+Шаг 1 - ответ от сервера
+
+```
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 61689
+;; flags: qr rd; QUERY: 1, ANSWER: 0, AUTHORITY: 5, ADDITIONAL: 10
+;; WARNING: recursion requested but not available
+
+;; QUESTION SECTION:
+;mail.ru.                       IN      MX
+
+;; AUTHORITY SECTION:
+ru.                     172800  IN      NS      a.dns.ripn.net.
+ru.                     172800  IN      NS      b.dns.ripn.net.
+ru.                     172800  IN      NS      d.dns.ripn.net.
+ru.                     172800  IN      NS      e.dns.ripn.net.
+ru.                     172800  IN      NS      f.dns.ripn.net.
+
+;; ADDITIONAL SECTION:
+a.dns.ripn.net.         172800  IN      A       193.232.128.6
+a.dns.ripn.net.         172800  IN      AAAA    2001:678:17:0:193:232:128:6
+b.dns.ripn.net.         172800  IN      A       194.85.252.62
+b.dns.ripn.net.         172800  IN      AAAA    2001:678:16:0:194:85:252:62
+d.dns.ripn.net.         172800  IN      A       194.190.124.17
+d.dns.ripn.net.         172800  IN      AAAA    2001:678:18:0:194:190:124:17
+e.dns.ripn.net.         172800  IN      A       193.232.142.17
+e.dns.ripn.net.         172800  IN      AAAA    2001:678:15:0:193:232:142:17
+f.dns.ripn.net.         172800  IN      A       193.232.156.17
+f.dns.ripn.net.         172800  IN      AAAA    2001:678:14:0:193:232:156:17
+
+;; Query time: 1 msec
+;; SERVER: 199.7.83.42#53(199.7.83.42)
+;; MSG SIZE  rcvd: 337
+```
+				</section>				
+
+				<section data-markdown>
+### Пример поиска (2/3)
+
+Шаг 2 - запрос к серверу, отвечающему за RU
+
+```
+$ dig mx mail.ru. @a.dns.ripn.net.	# или @193.232.128.6
+;; Sending:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 39018
+;; flags: rd; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;mail.ru.                       IN      MX
+
+;; QUERY SIZE: 25
+```
+
+Запрос совершенно такой же, кроме ID
+				</section>				
+
+				<section data-markdown>
+### Пример поиска (2/3)
+
+Шаг 2 - ответ от сервера
+
+```
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 39018
+;; flags: qr rd; QUERY: 1, ANSWER: 0, AUTHORITY: 3, ADDITIONAL: 3
+;; WARNING: recursion requested but not available
+
+;; QUESTION SECTION:
+;mail.ru.                       IN      MX
+
+;; AUTHORITY SECTION:
+MAIL.RU.                345600  IN      NS      ns2.mail.RU.
+MAIL.RU.                345600  IN      NS      ns3.mail.RU.
+MAIL.RU.                345600  IN      NS      ns1.mail.RU.
+
+;; ADDITIONAL SECTION:
+ns1.mail.RU.            345600  IN      A       217.69.139.112
+ns2.mail.RU.            345600  IN      A       94.100.180.138
+ns3.mail.RU.            345600  IN      A       185.30.176.202
+
+;; Query time: 32 msec
+;; SERVER: 193.232.128.6#53(193.232.128.6)
+;; MSG SIZE  rcvd: 139
+```
+
+				</section>				
+
+				<section data-markdown>
+### Быстрые вопросы
+
+Почему ответ не авторитетный ?
+
+Почему регистр в именах смешанный ?
+
+Почему ns2, ns3, потом ns1 ?
+
+Почему ответа ждали дольше?
+* от l.root-servers.net.
+```
+;; Query time: 1 msec
+;; SERVER: 199.7.83.42#53(199.7.83.42)
+```
+* от a.dns.ripn.net.
+```
+;; Query time: 32 msec
+;; SERVER: 193.232.128.6#53(193.232.128.6)
+```
+				</section>				
+
+				<section data-markdown>
+### Пример поиска (3/3)
+
+Пропустим запрос, сразу ответ от MAIL.RU
+
+```
+$ dig mx mail.ru. @ns1.mail.ru
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 18106
+;; flags: qr aa rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 3, ADDITIONAL: 8
+
+;; QUESTION SECTION:
+;mail.ru.                       IN      MX
+
+;; ANSWER SECTION:
+mail.ru.                600     IN      MX      10 mxs.mail.ru.
+
+;; AUTHORITY SECTION:
+mail.ru.                600     IN      NS      ns1.mail.ru.
+mail.ru.                600     IN      NS      ns3.mail.ru.
+mail.ru.                600     IN      NS      ns2.mail.ru.
+
+;; ADDITIONAL SECTION:
+mxs.mail.ru.            60      IN      A       94.100.180.104
+mxs.mail.ru.            60      IN      A       94.100.180.31
+ns1.mail.ru.            600     IN      A       217.69.139.112
+ns1.mail.ru.            600     IN      AAAA    2a00:1148:db00::2
+ns2.mail.ru.            600     IN      A       94.100.180.138
+ns2.mail.ru.            600     IN      AAAA    2a00:1148:db00::1
+ns3.mail.ru.            600     IN      A       185.30.176.202
+ns3.mail.ru.            600     IN      AAAA    2a00:1148:db00::2
+
+;; Query time: 36 msec
+;; SERVER: 217.69.139.112#53(217.69.139.112)
+;; MSG SIZE  rcvd: 263
+```
+
+Ответ авторитетный (1 запись)
+				</section>				
+
+				<section data-markdown>
+### Рекурсивный поиск
+
+Клиент получает готовый ответ на запрос
+
+![](images/ns-recursive-query.svg)
+
+Надо включать в настройках сервера
+```
+options { 
+	allow-recursion {
+		192.168.0.0/24; localhost; 
+	}; 
+};
+```
+				</section>				
+
+				<section data-markdown>
+### Нерекурсивный поиск
+
+Клиент (часто dns-сервер) в ответ получает не больше чем уже известно серверу
+* из кеша
+* из локальных зон
+* записи NS+A  (если в кеше есть ns-серверы домена из запроса, либо корневые)
+
+![](images/ns-norecursive-query.svg)
+
+				</section>				
+
+				<section data-markdown>
+## Синхронизация и обновление данных
+				</section>				
+
+				<section data-markdown>
+### Зачем синхронизация
+
+* Корневых серверов много
+* Для надёжности нужно, чтобы авторитетных серверов для каждого домена было несколько
+
+Информация в файлах зон на серверах должна быть одинаковой
+* Master-сервер 
+* Slave-серверы
+* синхронизация...
+				</section>				
+
+				<section data-markdown>
+### Передача зоны
+
+Два механизма копирования зоны
+* полное копирование (AXFR)
+* инкрементальное копирование зоны (IXFR), RFC 1995
+  - номер старой версии и список записей, которые нужно удалить
+  - номер более свежей версии и записи, которые нужно добавить
+				</section>				
+
+				<section data-markdown>
+### Особенности
+
+Передача зоны — 53/**tcp**
+
+В потоке передаётся подряд несколько обычных сообщений DNS
+
+Перед каждым сообщением добавляется префикс (2 байта)
+
+Начало и конец передачи (первая и последняя запись) - SOA
+				</section>				
+
+				<section data-markdown>
+### Низкая скорость
+
+```
+$ORIGIN .
+$TTL 36000      ; 10 hours
+ructf.net               IN SOA  ns.urgu.org. znick.hackerdom.ru. (
+                                2017012500 ; serial
+                                86400      ; refresh (1 day)
+                                600        ; retry (10 minutes)
+                                86400      ; expire (1 day)
+                                86400      ; minimum (1 day)
+                                )
+$TTL 86400      ; 1 day
+```
+
+Период обновления - 1 день
+
+Это нормально, если изменения редки
+
+Это плохо, когда поломался хостинг
+				</section>				
+
+				<section data-markdown>
+### Уведомления
+
+RFC 1996 — DNS NOTIFY
+
+* В БД вносятся изменения 
+* Master послал оповещение 
+* Slave запросил зону 
+* Slave получил зону 
+
+Включается в описании зоны
+```
+zone "urfu.ru" {
+	...
+	notify yes;
+	...
+}
+```
+				</section>				
+
+				<section data-markdown>
+### Другие методы
+
+Например, в домене Microsoft система DNS используется для поиска компьютеров и сервисов
+
+Часто зона DNS хранится в специальной БД — Active Directory
+
+Своя распределенная система синхронизации и разрешения конфликтов
+				</section>				
+
+				<section data-markdown>
+### Динамическое обновление
+
+RFC 2136 "Dynamic Updates in the DNS"
+
+Позволяет информации на DNS-сервере обновляться в реальном времени и в автоматическом режиме
+
+На практике клиенты при получении или изменении IP-адреса по протоколу DHCP
+сами посылают новые сведения на DNS-сервер
+
+Обычно потребуется авторизация
+				</section>				
+
+				<section data-markdown>
+## Альтернативный транспорт
+				</section>				
+
+				<section data-markdown>
+### Zeroconf
+
+Концепция Zero Configuration Networking - 
+ничего не настраивать в изолированной сети SOHO (Small and Home Office)
+
+Выбор сетевого адреса для устройства
+* RFC 3927 - Dynamic Configuration of IPv4 Link-Local Addresses
+  - Он же APIPA - 169.254.0.0/16 
+* RFC 4193 - Unique Local IPv6 Unicast Addresses
+  - концепция уже встроена в IPv6
+				</section>				
+
+				<section data-markdown>
+### Zeroconf
+
+Нахождение компьютеров по имени
+* [Bonjour](https://developer.apple.com/bonjour/) от Apple (лицензия Apache 2.0), протокол Multicast DNS (mDNS)
+* [Avahi](http://avahi.org/) - Open-source реализация (LGPL)
+* Link-local Multicast Name Resolution от Microsoft
+
+Обнаружение сервисов, напр. принтеров
+* DNS Service Discovery (DNS-SD)
+* UPnP, в т.ч. Simple Service Discovery Protocol (SSDP)
+* Service Location Protocol (SLP) 
+				</section>
+				
+				<section data-markdown>
+### mDNS
+
+RFC 6762 — Multicast DNS
+
+DNS-like queries for DNS-like resource records by sending DNS-like UDP query and response messages over IP Multicast to UDP port 5353
+
+IPv4 link-local multicast address 224.0.0.251 (IPv6 FF02::FB)
+
+Специальный домен ".local."
+				</section>				
+
+				<section data-markdown>
+![](images/ns-bonjour-naming.png)
+				</section>				
+
+				<section data-markdown>
+### Особенности
+
+Каждое устройство является авторитетным mDNS-сервером для своих записей
+
+Делегирования как такового нет
+
+Пример использования
+```
+MyPrinter._printer._tcp.local. 
+		120 IN SRV 0 0 515 MyComp.local.
+```
+				</section>
+
+				<section data-markdown>
+### DNS-over-*
+
+Проблема: пакеты DNS не шифруются
+
+DNS over TLS (DNS поверх TLS, DoT, RFC7858)
+
+DNS over HTTPS (DNS поверх HTTPS, DoH, RFC8484)
+
+Зашифровать DNS-трафик для предотвращения перехвата и обеспечения конфиденциальности и безопасности
+				</section>
+
+				<section data-markdown>
+# Вопросы ?
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>

@@ -1,0 +1,16 @@
+# neato -Tsvg -O ns-client-resolve
+digraph g{
+  layout=neato;
+  node [pin=true,shape=circle];
+  CLIENT [pos="0,2",label="\N\nкеш\nhosts"];
+  node[pin=true,shape=house];
+  S1 [pos="3,2",label="\N\nкеш\nzones"];
+  S2 [pos="7,2",label="\N (forwarder)\nкеш\nzones",style=dashed];
+  NS1 [pos="2,0"];
+  NS2 [pos="4,0"];
+  NS3 [pos="6,0"];
+
+  CLIENT -> S1 [label="запрос ns-сервера"]
+  S1 -> S2 [label="пересылка запроса",style=dashed]
+  S2 -> NS1,NS2,NS3 [label="поиск"]
+}

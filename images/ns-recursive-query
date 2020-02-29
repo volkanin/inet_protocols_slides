@@ -1,0 +1,16 @@
+# neato -Tsvg -O ns-recursive-query
+digraph g{
+  layout=neato;
+  node [pin=true,shape=circle];
+  CLIENT [pos="0,0"];
+  node[pin=true,shape=house];
+  S1 [pos="3,0"];
+  NS1 [pos="5,1"];
+  NS2 [pos="6,0.5"];
+  NS3 [pos="7,0"];
+
+  CLIENT -> S1 [label="RD=1",color=blue]
+  S1 -> CLIENT [label="RA=1",color=green]
+
+  S1 -> NS1,NS2,NS3 [dir=both]
+}
