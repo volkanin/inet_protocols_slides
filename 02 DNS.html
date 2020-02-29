@@ -265,6 +265,15 @@ RFC 2606 — Reserved Top Level DNS Names
 				</section>
 
 				<section data-markdown>
+### Сколько TLD ?
+
+* [wikipedia/List_of_Internet_top-level_domains](https://en.wikipedia.org/wiki/List_of_Internet_top-level_domains)
+
+* [data.iana.org/TLD/tlds-alpha-by-domain.txt](https://data.iana.org/TLD/tlds-alpha-by-domain.txt)
+  - свыше 1500
+				</section>
+
+				<section data-markdown>
 ### 63 символов хватит ?
 
 llanfairpwllgwyngyllgogerychwyrndrobwyll-llantysiliogogogoch.com — название деревни Лланвайр-Пуллгвингилл в Уэльсе на острове Англси, означающее «Церковь Святой Марии в ложбине, заросшей белым орешником, около быстрого водоворота, неподалёку от церкви Святого Тисилио и красной пещеры»
@@ -314,6 +323,16 @@ Resolver - часть операционной системы
   - %windir%\system32\drivers\etc\hosts [W]
 4. Спросить у сервера DNS
   - /etc/resolv.conf [U]
+
+Note:
+Порядок настраивается.
+например, в Linux
+```
+$ grep ^hosts /etc/nsswitch.conf
+hosts:          files dns
+```
+
+см. https://habr.com/ru/post/352300/
 				</section>
 
 				<section data-markdown>
@@ -582,6 +601,31 @@ $ORIGIN urfu.ru.
 		NS	ns2
 ns1		A	212.193.66.21
 ns2		A	93.88.176.11
+				</section>
+
+				<section data-markdown>
+### NS в корневой зоне
+
+ftp://rs.internic.net/domain/root.zone
+
+```
+ru.                     172800  IN      NS      a.dns.ripn.net.
+ru.                     172800  IN      NS      b.dns.ripn.net.
+ru.                     172800  IN      NS      d.dns.ripn.net.
+ru.                     172800  IN      NS      e.dns.ripn.net.
+ru.                     172800  IN      NS      f.dns.ripn.net.
+a.dns.ripn.net.         172800  IN      A       193.232.128.6
+a.dns.ripn.net.         172800  IN      AAAA    2001:678:17:0:193:232:128:6
+b.dns.ripn.net.         172800  IN      A       194.85.252.62
+b.dns.ripn.net.         172800  IN      AAAA    2001:678:16:0:194:85:252:62
+d.dns.ripn.net.         172800  IN      A       194.190.124.17
+d.dns.ripn.net.         172800  IN      AAAA    2001:678:18:0:194:190:124:17
+e.dns.ripn.net.         172800  IN      A       193.232.142.17
+e.dns.ripn.net.         172800  IN      AAAA    2001:678:15:0:193:232:142:17
+f.dns.ripn.net.         172800  IN      A       193.232.156.17
+f.dns.ripn.net.         172800  IN      AAAA    2001:678:14:0:193:232:156:17
+```
+
 				</section>
 
 				<section data-markdown>
