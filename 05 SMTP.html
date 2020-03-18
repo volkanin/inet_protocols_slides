@@ -1,0 +1,568 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+		<style type="text/css">.reveal blockquote { font-size: 50%; }</style>
+		<style type="text/css">.reveal table { font-size: 75%; }</style>
+		<style type="text/css">.reveal p img { border: 0px; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# Доставка электронной почты
+
+## SMTP
+
+Протоколы Интернет, лекция 5
+				</section>
+
+				<section data-markdown>
+### План
+
+> Госпоже правой ноге Алисы. Посылаю Вам мягкий коврик.
+> С сердечным приветом, Алиса
+
+* О какой почте речь
+* Принципы организации 
+* Формат письма 
+* Протокол SMTP 
+* Доставка писем
+
+				</section>
+
+				<section data-markdown>
+### Электронная почта
+
+Технология и сервис по пересылке и получению электронных сообщений между пользователями в сети
+
+«электронные письма», «письма», «сообщения»
+				</section>
+
+				<section data-markdown>
+### Это всё почта
+
+* UUCP (Unix-to-Unix Copy) – исторически первый
+* X.400 – международный стендарт ITU-T
+* Закрытые форматы – Microsoft Exchange, IBM Notes/Domino
+* VipNet Деловая почта – защищенная, по нашим стандартам
+* «Почта в интернете» – изначально RFC 821, 822
+  - Формат письма
+  - Simple Mail Transfer Protocol
+				</section>
+
+				<section data-markdown>
+### Историческая справка
+
+60-e Передача сообщений между пользователями одного мэйнфрейма
+
+Рост ARPANET вызвал появление стандартов обмена сообщениями
+
+**1971** Mail Box Protocol, RFC 196
+
+Ray Tomlinson создал SNDMSG
+
+**1973** Network Mail Meeting Summary, RFC 469
+
+A Proposed Mail Protocol, RFC 524
+
+				</section>
+
+				<section data-markdown>
+### Историческая справка
+
+**1980** Mail Transfer Protocol, RFC 772, Jon Postel
+
+**1981** Выход 4.1cBSD и Sendmail
+
+**1982** SMTP описан в RFC 821 обновлен 2821 (01 г.), 5321 (08 г.)
+
+				</section>
+
+				<section data-markdown>
+### Историческая справка
+
+**1993** RFC 1425 Extended SMTP (ESMTP), обновлен 1651 (94 г.), 1869 (95 г.)
+
+**1998** RFC 2476 Message Submission обновлен 4409 (06 г.), 6409 (11 г.)
+
+**1999** RFC 2554 SMTP Service Extension for Authentication обновлен 4954 (07 г.), 5248 (08 г.)
+
+15 окт. 1998 - Бесплатная почта от Mail.Ru
+
+01 апр. 2004 - Бесплатная почта от Google
+				</section>
+
+				<section data-markdown>
+### Названия
+
+* в Европе, Америке — email и, реже, e-mail
+* в кириллических текстах можно встретить
+  - электронная почта, эл. почта, интернет-почта
+  - имейл, мейл (транскрипция)
+  - е-мейл, емейл, емайл (транслитерация)
+  - сленг — мыло, электропочта
+* в официальных русскоязычных документах
+  - в тексте «электронная почта»;
+  - в списке контактов префикс «e-mail»	
+			</section>
+
+				<section data-markdown>
+## SMTP
+
+Simple Mail Transfer Protocol
+				</section>
+
+				<section data-markdown>
+### Идентификация получателя
+
+Адрес электронной почты — запись, установленная по SMTP RFC, однозначно идентифицирующая почтовый ящик, в который следует доставить сообщение электронной почты
+
+имя почтового ящика @ почтовый домен (localpart@domain)
+- localpart – до 64 символов, имя пользователя, алиас, список рассылки
+- domain — как для DNS
+				</section>
+
+				<section data-markdown>
+### Валидация
+
+
+habr.com/post/274985 — «Я знал, как валидировать email-адрес. Пока не прочитал RFC»
+* "Abc\@def"@example.com
+* "Fred Bloggs"@example.com
+* "Joe\\Blow"@example.com
+* "Abc@def"@example.com
+* customer/department=shipping@example.com
+* !def!xyz%abc@example.com
+* _somename@example.com
+				</section>
+
+				<section data-markdown>
+### в других системах
+
+Адрес UUCP – host1!host2!user
+- маршрутизация «от источника»
+
+Адрес X.400 — C=RU;A=;P=URFU;O=INSMA;OU=KVMKN;S=Volkanin;G=Leonid;
+* C – Country name
+* A / ADMD – Administration Management Domain
+* P or PRMD – Private Management Domain
+* O – Organization name
+* OU – Organizational Unit Names
+* G – Given name
+* I – Initials
+* S – Surname
+				</section>
+
+				<section data-markdown>
+### схема работы SMTP
+
+![SMTP transfer model](images/mail-smtp-transfer-model.svg)
+				</section>
+
+				<section data-markdown>
+### участники обмена
+
+Mail User Agent – программа на компьютере пользователя для получения, написания, отправки и хранения сообщений
+
+Mail Submission Agent – принимает сообщения от MUA и работает совместно с MTA для доставки
+
+Mail Transfer Agent –  передаёт сообщения от одного компьютера к другому
+
+Mail Delivery Agent – принимаетсообщения и доставляет их в ящик получателя (или перенаправляет их на другой сервер)
+
+Стандартно обмен — 25 / tcp
+				</section>
+
+				<section data-markdown>
+### Сеанс работы
+
+telnet mxs.mail.ru 25
+
+```
+→		220 Mail.Ru ESMTP
+	←	EHLO  hostname		# изначально – HELO 
+→		250-mx132.mail.ru ready to serve
+		250-STARTTLS
+		250-SIZE 73400320
+		250 8BITMIME
+	←	MAIL FROM: &lt;leonid@volkanin.ru&gt;
+→ 		250 OK
+	←	RCPT TO: &lt;volkanin@mail.ru&gt;
+→ 		250 OK
+	←	DATA
+→ 		354 Go ahead
+	←	Текст письма
+	←	.
+→ 		250 OK id=1alJcW-0006XM-VF
+	←	QUIT
+→ 		221 mx132.mail.ru closing connection
+```
+				</section>
+
+				<section data-markdown>
+### Ответы SMTP
+
+Состоят из 3 цифр.
+Значение первой цифры
+
+1 - Предварительный положительный результат
+
+2- Команда выполнена успешно
+
+3 - Промежуточный положительный результат. Сервер ожидает от клиента дополнительные данные для завершения операции
+
+4 - Исполнение команды временно невозможно
+
+5 - Исполнение команды невозможно
+				</section>
+
+				<section data-markdown>
+Значение второй цифры
+
+0 - Синтаксическая ошибка
+
+1 - Ответ содержит запрошенную информацию
+
+2 - Ответ о состоянии канала передачи
+
+5 - Ответ информирует о состоянии принимающей почтовой системы
+
+Если ответ многострочный, то код отделяется символом "-",
+в последней строке пробелом
+
+Каждая строка ответа заканчивается последовательностью CRLF 
+				</section>
+
+				<section data-markdown>
+## Формат сообщения
+				</section>
+
+				<section data-markdown>
+Сформировать/отобразить - задача MUA
+
+![message](images/mail-message.png)
+				</section>
+
+				<section data-markdown>
+### Пример сообщения
+
+```
+From: Леонид &lt;e@mail&gt;
+To: Волканин &lt;e@mail&gt;
+Subject: Неопровержимый натуральный логарифм -
+  актуальная национальная задача
+Date: Fri, 1 Apr 2020 09:00:00 GMT+5
+
+Текст
+```
+
+пустая строка — \0xD\0xA\0xD\0xA
+				</section>
+
+				<section data-markdown>
+### Основные заголовки письма
+
+* From, To, CC, BCC 
+* Subject, Date
+* Sender, Reply-To
+* Return-Path
+* Received 
+* Message-ID
+
+Не умещается на строке? Перенесите и сделайте отступ
+				</section>
+
+				<section data-markdown>
+### MIME
+
+Multipurpose Internet Mail Extension
+
+MIME – стандарт, описывающий передачу различных типов данных по электронной почте
+
+Спецификация для кодирования информации и форматирования сообщений для передачи разного рода информации внутри текстовых данных
+				</section>
+
+				<section data-markdown>
+### MIME
+
+Определяет набор e-mail-заголовков для определения дополнительных атрибутов сообщения
+
+Определяет множество кодировок, которые могут быть использованы для представления 8-битных бинарных данных с помощью символов из 7-битного ASCII
+
+5 штук RFC 2045 — 2049
+				</section>
+
+				<section data-markdown>
+### Примеры заголовков MIME
+
+* Mime-Version: 1.0
+
+* Content-Type – тип сообщения
+* Content-Type: text/plain; charset=KOI-8
+* Content-Type: application/octet-stream
+
+* Content-Transfer-Encoding – тип транспортного кодирования 
+* Content-Transfer-Encoding: base64
+				</section>
+
+				<section data-markdown>
+### Тип содержимого
+
+Content-Type: базовый тип / прикладной тип
+
+* application
+  - application/octet-stream, application/pdf
+* audio
+* image
+  - image/jpg, image/png
+* message
+* model
+* multipart
+* text
+  - text/plain, text/html
+* video
+				</section>
+
+				<section data-markdown>
+### пример улучшенного сообщения
+
+```
+From: =?utf-8?B?0JvQtdC+0L3QuNC0?= &lt;e@mail&gt;
+To: …
+Subject: …
+Date: Fri, 1 Apr 2016 09:00:00 GMT+5 
+Content-Type: text/html; charset=windows-1251
+
+&lt;p style="color:red"&gt;Важный текст&lt;/p&gt;
+```
+				</section>
+
+				<section data-markdown>
+### Составные письма
+
+Содержимое письма состоит из нескольких частей, содержащих данные различных типов
+
+Например — письмо + файл (вложение)
+
+* multipart/mixed
+* multipart/alternative
+* multipart/related
+* multipart/digest
+* multipart/form-data
+* multipart/signed
+* multipart/encrypted
+				</section>
+
+				<section data-markdown>
+### Пример составного сообщения
+
+```
+From: …
+Content-Type: multipart/mixed; boundary=qwerty
+
+--qwerty
+Content-Type: text/plain; charset=windows-1251
+
+Часть 1
+--qwerty
+Content-Type: image/gif
+Content-Transfer-Encoding: base64
+Content-Disposition:attachment;filename:"tips.gif"
+
+Base64 от файла
+--qwerty--
+```
+				</section>
+
+				<section data-markdown>
+## Доставка сообщений
+				</section>
+
+				<section data-markdown>
+### Mail Submission
+
+Как у MSA появляются письма?
+* приняли по SMTP
+* вызвали локальную программу для постановки в очередь
+* положили в «каталог подбора»
+
+Принятое письмо кладём в SPOOL
+- конверт и текущий статус
+- само сообщение
+
+По таймеру достаём письмо и думаем что делать
+				</section>
+
+				<section data-markdown>
+### Маршрутизация писем
+
+По аналогии с маршрутизацией IP
+
+| вариант действия ||
+|----------------------------|----------------|
+| Не нам ли адресован пакет? | x.x.x.x/32     |
+| Есть маршрут?              | 192.168.0.0/24 |
+| Или это группа?            | 224.0.0.1/8    |
+| Если нет – по умолчанию    | 0.0.0.0/0      |
+				</section>
+
+				<section data-markdown>
+### Маршрутизация писем
+
+Письмо предлагается зарегистрированным «роутерам»
+
+| вариант действия ||
+|-------------------------------------------------|-----------------------------------|
+| Адресовано нам?                                 | Локальный домен                   |
+| Может это рассылка?                             | Размножить и в очередь            |
+| Может отправить соседу, с которым договорились? | SMTP Relay                        |
+| Может старший товарищ разберется?               | Smart host                        |
+| Нет?                                            | Будем сами искать, как доставить… |
+				</section>
+
+				<section data-markdown>
+### Локальные домены
+
+Адресованные локальным доменам письмапередаются MDA, 
+он проверит правильность получателя и положит в ящик
+
+```
+## Local Transport 
+
+# Disable local transport (so that system accounts can't receive)
+local_transport = error: Local Transport Disabled 
+
+# Don't use local alias maps 
+alias_maps =
+
+# Local domain (could be omitted, since it is automatically derived from $myhostname) 
+mydomain = example.com 
+
+# Mails for these domains will be transported locally 
+mydestination =
+	$myhostname
+	localhost.$mydomain
+	localhost
+```
+				</section>
+
+				<section data-markdown>
+### Списки рассылок
+
+Mailing list
+
+![](images/mail-mta-mailinglist.png)
+				</section>
+
+				<section data-markdown>
+### Пересылка почты
+
+Почтовый посредник, RELAY
+
+Сценарии работы:
+* Запасной сервер, принимает почту, но пересылает основному
+* Сервер провайдера
+* Внешний антивирусный или спам-фильтр, пересылает почту на наш сервер после проверки
+				</section>
+
+				<section data-markdown>
+### Smart host
+
+Всю нелокальную почту отправляем для разбирательства «старшему серверу»
+
+Сценарии использования
+* Внутренний сервер не имеет выхода в Интернет
+  smart host = шлюз во внешний мир
+* Используется своё пространство имён DNS
+  support@sverdlovsk.rzd
+				</section>
+
+				<section data-markdown>
+### Поиск сервера назначения
+
+имя почтового ящика @ почтовый домен
+
+Формат имени почтового домена совпадает с DNS
+
+Использование DNS-записи MX нужно, чтобы почта домена обслуживалась другим сервером
+```
+volkanin.ru	IN	MX	[10]	mx.yandex.net
+```
+Позволяет организовать внешний хостинг
+
+Если записи MX нет, то IP сервера назначения совпадает с IP-адресом домена DNS
+				</section>
+
+				<section data-markdown>
+### Прием конечным сервером
+
+Алгоритм такой же
+
+* Локальный домен?
+* Возможно, мы – запасной сервер, пересылка
+* Возможно, мы – внешний сервер, пересылаем всё внутрь, на smart host
+* Если нет? Не принимаем письмо!
+				</section>
+
+				<section data-markdown>
+### Возможные проблемы
+
+* Не удаётся найти сервер-получатель в DNS
+* Не удаётся связаться (выключен или отфильтрован 25/tcp)
+* Не существует получателя
+* Нет места на диске
+* Ещё варианты?
+
+Надо бы сообщить отправителю, но как?
+
+				</section>
+
+				<section data-markdown>
+### NDR
+
+Отчёт о невозможности доставки
+* Non-Delivery Report
+* Delivery status notification
+* Bounce Message
+
+Формируется письмо от MAILER-DAEMON@.. на адрес, указанный в заголовке Return-Path 
+
+Хотя можно просто проигнорировать
+				</section>
+
+				<section data-markdown>
+### NDR
+
+Правильная ли картинка в wiki ?
+
+![](images/mail-mta-ndr.png)
+				</section>
+
+				<section data-markdown>
+# Вопросы ?
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/math/math.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
