@@ -1,0 +1,710 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+		<style type="text/css">.reveal blockquote { font-size: 50%; }</style>
+		<style type="text/css">.reveal table { font-size: 75%; }</style>
+		<style type="text/css">.reveal p img { border: 0px; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# Доставка и получение электронной почты
+
+Протоколы Интернет, лекция 6
+				</section>
+
+				<section data-markdown>
+### План
+
+> Госпоже правой ноге Алисы. Посылаю Вам мягкий коврик.
+> С сердечным приветом, Алиса
+
+* Доставка писем
+* Сценарии работы SMTP-сервера
+* Нежелательные письма
+* Почтовый ящик
+* Получение почты (POP3, IMAP)
+				</section>
+
+				<section data-markdown>
+### Повторим схему
+
+![SMTP transfer model](images/mail-smtp-transfer-model.svg)
+				</section>
+
+				<section data-markdown>
+### Возможные проблемы
+
+* Не удаётся найти сервер-получатель в DNS
+* Не удаётся связаться (выключен или отфильтрован 25/tcp)
+* Не существует получателя
+* Нет места на диске
+* Ещё варианты?
+
+Надо бы сообщить отправителю, но как?
+				</section>
+
+				<section data-markdown>
+### NDR
+
+Отчёт о невозможности доставки
+* Non-Delivery Report
+* Delivery status notification
+* Bounce Message
+
+Формируется письмо от MAILER-DAEMON@.. на адрес, указанный в заголовке Return-Path
+
+Хотя можно просто проигнорировать
+				</section>
+
+				<section data-markdown>
+### NDR
+
+Правильная ли картинка в wiki ?
+
+![](images/mail-mta-ndr.png)
+				</section>
+
+				<section data-markdown>
+### Отслеживание писем
+
+В общем - нерешаемая задача, можно попросить https://www.sendmail.org/~ca/email/dsn.html
+
+В письме видно так:
+```
+Return-Receipt-To: =?koi8-r?B?98/My8HOyc4g7MXPzsnEIPPF0sfFxdfJ3g==?= &lt;leonid@volkanin.ru&gt;
+Disposition-Notification-To: =?koi8-r?B?98/My8HOyc4g7MXPzsnEIPPF0sfFxdfJ3g==?= &lt;leonid@volkanin.ru&gt;
+```
+
+![](images/mail-dsn-request-outlook.png)
+				</section>
+
+				<section data-markdown>
+### Отслеживание писем
+
+Если письмо дошло, можно проследить маршрут
+
+```
+Received: from forward102j.mail.yandex.net ([5.45.198.243]:37860)
+	by mxpdd12.m.smailru.net with esmtp (envelope-from <leonid@volkanin.ru>)
+	id 1jH88I-00064o-Iu
+	for lsv@usaaa.ru; Wed, 25 Mar 2020 18:39:54 +0300
+Received: from mxback4g.mail.yandex.net (mxback4g.mail.yandex.net [IPv6:2a02:6b8:0:1472:2741:0:8b7:165])
+	by forward102j.mail.yandex.net (Yandex) with ESMTP id 60727F22BFD
+	for <lsv@usaaa.ru>; Wed, 25 Mar 2020 18:39:54 +0300 (MSK)
+Received: from iva4-bca95d3b11b1.qloud-c.yandex.net (iva4-bca95d3b11b1.qloud-c.yandex.net [2a02:6b8:c0c:4e8e:0:640:bca9:5d3b])
+	by mxback4g.mail.yandex.net (mxback/Yandex) with ESMTP id C8A7KqUsz2-ds8Ks2xn;
+	Wed, 25 Mar 2020 18:39:54 +0300
+Received: by iva4-bca95d3b11b1.qloud-c.yandex.net (smtp/Yandex) with ESMTPSA id wUGvVnD561-drbKF85Z;
+	Wed, 25 Mar 2020 18:39:53 +0300
+```
+				</section>
+
+				<section data-markdown>
+## Сценарии работы SMTP
+				</section>
+
+				<section data-markdown>
+### Прием конечным сервером
+
+Алгоритм знакомый
+* Локальный домен?
+* Возможно, мы - запасной сервер, пересылка
+* Возможно, мы - внешний сервер, пересылаем всё внутрь, на smart host
+* Если нет?
+  - Не принимаем письмо!
+
+Что значит «возможно» ?
+				</section>
+
+				<section data-markdown>
+### Что знает сервер
+
+telnet mxs.mail.ru 25
+
+```
+→		220 Mail.Ru ESMTP
+	←	HELO  hostname		# <b>IP адрес</b> - из сокета
+→		250 mx132.mail.ru ready to serve
+	←	<b>MAIL FROM</b>: &lt;leonid@volkanin.ru&gt;
+→ 		250 OK
+	←	<b>RCPT TO</b>: &lt;volkanin@mail.ru&gt;
+→ 		250 OK
+	←	DATA
+		<b>вот тут мы и принимаем решение</b>
+```
+				</section>
+
+				<section data-markdown>
+### Режим Open Relay
+
+| Признак                 | ограничение     |
+|-------------------------|-----------------|
+| IP клиента              | нет ограничений |
+| Отправитель (MAIL FROM) | нет ограничений |
+| Получатель (RCPT TO)    | нет ограничений |
+
+Кто угодно может посылать письма через сервер
+
+Мультипликативный эффект - на один MAIL FROM миллион RCPT TO
+
+Такие серверы легко обнаруживаются и быстро попадают в чёрные списки
+или в рабочие списки спаммеров
+				</section>
+
+				<section data-markdown>
+### Режим почтового сервера организации
+
+| Признак                 | ограничение     |
+|-------------------------|-----------------|
+| IP клиента              | Ограниченный список|
+| Отправитель (MAIL FROM) | нет ограничений |
+| Получатель (RCPT TO)    | нет ограничений |
+
+«Свои» клиенты отсылают письма от кого угодно кому угодно
+
+Определяем только по IP ?
+				</section>
+
+				<section data-markdown>
+### Режим сервера организации
+
+![](images/mail-mta-limit-ip.png)
+				</section>
+
+				<section data-markdown>
+### Режим внешнего сервера отправки
+
+| Признак                 | ограничение     |
+|-------------------------|-----------------|
+| IP клиента              | нет ограничений |
+| Отправитель (MAIL FROM) | Ограниченный список |
+| Получатель (RCPT TO)    | нет ограничений |
+
+Пример - smtp.mail.ru
+
+Требуется авторизация
+				</section>
+
+				<section data-markdown>
+### Режим внешнего сервера
+
+![](images/mail-mua-smtp-auth.png)
+
+25/tcp между серверами.
+MUA - на другой порт
+
+![](images/mail-mua-smtp-port.png)
+				</section>
+
+				<section data-markdown>
+### Механизмы проверки
+
+RFC 4954 — SMTP Service Extension for Authentication
+* Обычно - через защищенное соединение
+* При установке соединения — 465/tcp
+* После команды STARTTLS — 25/tcp или 587/tcp
+
+AUTH LOGIN
+```
+	←	auth login
+→		334 VXNlcm5hbWU6
+	←	avlsdkfj
+→		334 UGFzc3dvcmQ6
+	←	lkajsdfvlj
+```
+
+AUTH PLAIN
+* RFC 4616 — The PLAIN Simple Authentication 
+				</section>
+
+				<section data-markdown>
+### Защищенное соединение
+
+```
+SMTP_PORT = 465;
+
+sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM);
+ssl_sock = ssl.SSLSocket(sock);
+ssl_sock.connect((SMTP_SERVER,SMTP_PORT));
+```
+
+или 
+
+```
+# wrap socket to add SSL support
+ssl_sock = ssl.wrap_socket(sock)
+```
+				</section>
+
+				<section data-markdown>
+### Режим внешнего сервера приёма
+
+| Признак                 | ограничение     |
+|-------------------------|-----------------|
+| IP клиента              | нет ограничений |
+| Отправитель (MAIL FROM) | нет ограничений |
+| Получатель (RCPT TO)    | Ограниченный список |
+
+Пример - mxs.mail.ru
+
+Список своих (локальных) почтовых доменов 
+Список доменов, для которых осуществляем пересылку (relay)
+				</section>
+
+				<section data-markdown>
+### Сценарии работы SMTP
+
+| IP              | MAIL FROM       | RCPT TO         | сценарий                |
+|-----------------|-----------------|-----------------|-------------------------|
+| Нет ограничений | Нет ограничений | Нет ограничений | Open Relay              |
+| Ограничения     | Нет ограничений | Нет ограничений | Локальный сервер        |
+| Нет ограничений | Ограничения     | Нет ограничений | Внешний сервер отправки |
+| Нет ограничений | Нет ограничений | Ограничения     | Внешний сервер приёма   |
+
+Поведение сервера определяется наложенными ограничениями
+				</section>
+
+				<section data-markdown>
+## Нежелательные письма
+				</section>
+
+				<section data-markdown>
+### S.P.A.M.
+
+https://ru.wikipedia.org/wiki/SPAM
+
+![](images/mail-spam.png)
+				</section>
+
+				<section data-markdown>
+### Методы борьбы
+
+«Нежелательные» — плохо формализуемое понятие
+
+Что делать?
+
+Фильтровать
+* До приема текста письма
+  - Знаем только IP + MAIL FROM + RCPT TO
+* После приема текста письма
+
+Бороться с поддельными письмами
+				</section>
+
+				<section data-markdown>
+### Фильтрация по IP
+
+RFC 5782 - DNS Blacklists and Whitelists
+
+Black list, равнозначные названия:
+* DNSBL - Domain Name System-based Blackhole List
+* RBL - Real-time Blackhole List
+
+```
+$ host -tA 71.60.206.220.bl.spamcop.net
+220.206.60.71.bl.spamcop.net has address 127.0.0.2
+```
+
+White list
+
+Greylist - сначала ответ 45x, потом 25x
+				</section>
+
+				<section data-markdown>
+### Фильтрация по адресу e-mail
+
+В основном применяются белые списки
+
+Общая тенденция - бороться с поддельным отправителем 
+				</section>
+
+				<section data-markdown>
+### по ключевым словам
+
+100% бесплатно
+Сто процентов бесплатно
+Реклама
+Доступный
+Подарок
+Бонус
+Скидка
+Экономия
+Заработок
+Рубль
+Доход
+Дешёвый
+Заказ
+Кредит
+Инвестиции
+Свобода
+Гарантия
+Секрет
+Новинка
+Увеличение продаж
+Эксклюзивное предложение
+Ограниченный
+Сделка
+Прайс
+Цена
+Счёт
+Купите
+Срочно
+Только сегодня
+Не удаляйте
+Доступ
+Деньги
+Выгода
+Поздравляем
+Конфиденциально
+Дорогой друг
+Прямо сейчас
+Работа
+Присоединяйтесь
+Коммерческое предложение
+Специальный
+				</section>
+
+				<section data-markdown>
+### Статистический анализ
+
+https://ru.wikipedia.org/wiki/Байесовская_фильтрация_спама
+
+При обучении фильтра для каждого встреченного в письмах слова высчитывается и сохраняется его «вес» — оценка вероятности того, что письмо с этим словом — спам
+
+Для каждого пользователя оценка может быть своей
+
+В крупных почтовых системах выборка больше
+				</section>
+
+				<section data-markdown>
+### Комбинация факторов
+
+Например — SpamAssassin 
+
+Каждый тест имеет «стоимость», положительную («spam») или отрицательную («ham»)
+
+Если сообщение успешно проходит тест, эта «стоимость» добавляется к общему баллу
+
+Чем выше балл, тем больше вероятность, что сообщение является спамом
+
+У SpamAssassin есть настраиваемый порог, при превышении письмо классифицируется как спам
+				</section>
+
+				<section data-markdown>
+## Идентификация отправителя
+				</section>
+
+				<section data-markdown>
+### Постановка задачи
+
+Кто на самом деле отправил письмо ?
+* IP-адрес можно узнать из сокета, в дальнейшем из Received
+
+Содержимое MAIL FROM и From: не обязательно совпадает
+
+2 направления развития:
+* Подтвердить легитимность сообщения
+* Для владельца домена — контролировать появление в поле From
+				</section>
+
+				<section data-markdown>
+### SPF - Sender Policy Framework
+
+http://www.openspf.org/
+
+RFC 7208 — Sender Policy Framework (SPF) for Authorizing Use of Domains in Email, Version 1
+
+Позволяет владельцу домена указать в SPF- или TXT-записи список серверов, имеющих право отправлять сообщения с обратными адресами в этом домене
+
+MTA могут запрашивать SPF-записи с помощью DNS-запроса, верифицируя таким образом сервер отправителя
+				</section>
+
+				<section data-markdown>
+### SPF - Sender Policy Framework
+
+```
+example.org. IN SPF "v=spf1 +a +mx -all"
+```
+
+Примеры:
+* v=spf1 ip4:192.168.0.1/16 -all
+* v=spf1 a -all
+* v=spf1 a:mailers.example.com -all
+* v=spf1 mx mx:deferrals.domain.com -all
+
+```
+all | ip4 | ip6 | a | mx | ptr | exists | include
+"+" Pass	"-" Fail 	"~" SoftFail 		"?" Neutral 
+```
+
+				</section>
+
+				<section data-markdown>
+### SPF - Sender Policy Framework
+
+SPF-запись не наследуется на поддомены
+
+Для каждого домена третьего (и ниже) уровней необходима своя запись
+
+SPF проверяет только HELO и MAIL FROM поля
+
+Проблема - отсутствие у большинства доменов SPF-записи, которая защищает домен от его несанкционированного использования в электронной почте
+
+SPF может не использоваться принимающей стороной :(
+				</section>
+
+				<section data-markdown>
+### DKIM - DomainKeys Identified Mail
+
+DKIM-подпись позволяет подтвердить, что адрес, указанный в FROM, является реальным адресом отправителя письма
+
+Сгенерируйте ключевую пару DKIM (закрытый и публичный)
+
+Закрытый ключ - на SMTP сервере для отправки
+
+Открытый ключ - в DNS
+
+```
+$ host -t TXT mail._domainkey.volkanin.ru.
+mail._domainkey.volkanin.ru.  IN    TXT     "v=DKIM1; k=rsa; t=s; 
+  p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDKbuwDHlCHDBB8tKHwKuBrYeM1pGrNR5+RHsZ9GsKbGMEQyAxH/DbjsHB/LRuytSM6vFfw21vN33gAgp6yxiis0VNhoLPr2MNnEe5ZpXKC4lJdMLLaJnLUmEPgShVMRPY7eR5crRg//Z7fCbl0kJh5hOUP1vPFWbeXq21aX5qDAQIDAQAB"
+```
+				</section>
+
+				<section data-markdown>
+### Исходящее сообщение подписывается
+
+RFC 6376 DomainKeys Identified Mail (DKIM) Signatures
+
+```
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=volkanin.ru; s=mail; t=1585150794;
+	bh=u0RSTRomS4C3QnqIywGzyJ2zZu0Mt31LCdcd+Vcb72I=;
+	h=Subject:To:From:Date:Message-ID;
+	b=Vx/TIMiqRxStZte/YzGsRG6MCCem1vNKZ6r8t5d0WKcvk6+RcXt8kFWwIRqp+zJ3v
+	 upTnziqlmf+8h2A0qVyRBYmOaLmgePMSTUcnRC0oWraLhq6nAT9fwQC4xihEw4KwHe
+	 1XLsrSjDZ2o2qjC/ketwFCPbiI/3ieufSxYjz1/o=
+```
+
+b= The signature data (base64; REQUIRED)
+
+bh=  The hash of the canonicalized body part
+				</section>
+
+				<section data-markdown>
+### DKIM и спам
+
+Никто не мешает спамеру создать свой SMTP-сервер с поддержкой DKIM и DNS-сервер
+
+С точки зрения DKIM они будут легальными
+
+Но домены с такого сервера быстро заработают "штрафные баллы" и в дальнейшем будут блокированы спам-фильтром
+				</section>
+
+				<section data-markdown>
+### DMARC
+
+RFC 7489 Domain-based Message Authentication, Reporting and Conformance
+
+Владельцы доменов могут создавать правила обработки писем, которые поступили с адресов, не прошедших авторизацию
+
+Перед настройкой DMARC необходимо:
+* Настроить SPF-запись
+* Настроить DKIM-подпись
+				</section>
+
+				<section data-markdown>
+### DMARC
+
+| Тег  | Назначение         | Пример    | Варианты                 |
+|------|--------------------|-----------|--------------------------|
+| v    | Версия протокола   | v=DMARC1  |                          |
+| p    | Правила домена     | p=reject  | none, quarantine, reject |
+| sp   | Правила поддоменов | sp=reject | те же                    |
+| aspf | проверка SPF       | aspf=r    | r (relaxed), s (strict)  |
+
+				</section>
+
+				<section data-markdown>
+## Почтовый ящик
+				</section>
+
+				<section data-markdown>
+### Идентификация почтового ящика
+
+| Идентификатор SMTP      | → ящик →   | Идентификатор POP / IMAP      |
+|-------------------------|----------- |------------------------------ |
+| leonid@volkanin.ru      | куча писем | сервер: порт + логин + пароль |
+| leonid+test@volkanin.ru |            |                               |
+
+				</section>
+
+				<section data-markdown>
+### Mailbox / mbox
+
+mbox — общее название форматов файлов, используемых для хранения сообщений электронной почты
+
+Все сообщения - в одном текстовом файле
+
+Начало почтового сообщения - строка из 5 символов («From» с последующим пробелом)
+
+В конце каждого сообщения пустая строка
+
+Есть разные несовместимые между собой форматы mbox
+
+NOTE:
+показать на примере linux-машины
+				</section>
+
+				<section data-markdown>
+### Maildir
+
+Каждое сообщение хранится в отдельном файле с уникальным именем, а каждая папка представляет собой каталог
+
+Maildir не требует монопольного захвата файла для обеспечения целостности почтового ящика при чтении, добавлении или изменении сообщений
+
+Вопросами блокировки файлов при добавлении, перемещении и удалении файлов занимается локальная файловая система
+				</section>
+
+				<section data-markdown>
+### Хранение в СУБД
+
+Для крупных почтовых систем
+
+Мухи  - отдельно, котлеты  - отдельно
+				</section>
+
+				<section data-markdown>
+### Настройки клиента
+
+Account (учётная запись)
+* Человеческое имя
+* Отправка: адрес SMTP + порт
+* Получение: сервер + порт, логин, пароль
+
+![](images/mail-mua-account.png)
+
+![](images/mail-mua-smtp-port.png)
+				</section>
+
+				<section data-markdown>
+### Настройки клиента
+
+Адрес почты и имя пользователя не обязаны совпадать
+
+Можете привести пример ?
+				</section>
+
+				<section data-markdown>
+### POP3 - Post Office Protocol
+
+RFC 1939, порт 110/tcp, 995/tcp
+
+* Предполагаемая схема работы - письма хранятся у клиента, удаляются после получения
+* Плоский список писем, без папок
+* Монопольный захват ящика
+* Транзакция
+				</section>
+
+				<section data-markdown>
+### Сеанс POP3
+
+openssl s_client -connect pop.mail.ru:995
+
+```
+S: +OK
+C: user volkanin@mail.ru
+S: +OK
+C: pass пароль
+C: STAT
+S: +OK 617 215678861
+C: LIST
+S: +OK 617 215678861
+S: 1 120
+S: пропущено 616 строк
+S: .
+C: RETR 1
+S: +OK 120 octets
+S: текст сообщения 1
+S: .
+C: DELE 1
+S: +OK message 1 deleted
+C: QUIT
+S: +OK
+```
+				</section>
+
+				<section data-markdown>
+### Особенности POP3
+
+Нет флагов (прочтено, важное),
+письма нумеруются с 1 до общего количества
+
+Не удалили письма? При очередном сеансе они как новые, отличать можно по команде UIDL
+![](images/mail-mua-pop3-copy.png)
+				</section>
+
+				<section data-markdown>
+### IMAP - Internet Message Access Protocol
+
+RFC 3501  — IMAP4rev1, 143/tcp, 993/tcp
+
+* Предполагаемая схема работы – письма хранятся на сервере, на клиенте хранится копия
+* Иерархия папок (mailbox в терминологии RFC)
+* Одновременные сеансы допускаются
+* Асинхронное исполнение команд
+* Используется в связке с веб-интерфейсом
+				</section>
+
+				<section data-markdown>
+### openssl s_client -connect imap.mail.ru:993
+
+```
+$ echo -en "\0логин\0пароль" | base64
+ANC70L7Qs9C40L0A0L/QsNGA0L7Qu9GM
+```
+
+```
+S: * OK Welcome
+C: a01 AUTHENTICATE PLAIN
+S: +
+C: ANC70L7Qs9C40L0A0L/QsNGA0L7Qu9GM
+S: * CAPABILITY IMAP4rev1 …
+S: a01 OK Authentication successful
+C: a02 select inbox
+C: a03 fetch 1 full
+C: a04 fetch 1 body[header]
+C: a05 store 1 +flags \deleted
+C: a06 logout
+```
+				</section>
+
+				<section data-markdown>
+# Вопросы ?
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/math/math.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
