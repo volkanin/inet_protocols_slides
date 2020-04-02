@@ -1,0 +1,828 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+		<style type="text/css">.reveal blockquote { font-size: 50%; }</style>
+		<style type="text/css">.reveal table { font-size: 70%; }</style>
+		<style type="text/css">.reveal p img { border: 0px; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# Передача файлов
+
+Протоколы Интернет, лекция 7
+				</section>
+
+				<section data-markdown>
+### План
+
+> Впрочем, ведь раз некому ответить, то не всё ли равно, о чём спрашивать?
+
+* Trivial FTP
+* Виртуальная файловая система
+* FTP
+* Bittorrent
+				</section>
+
+				<section data-markdown>
+### Протоколы передачи файлов
+
+TCP
+* Apple Filing Protocol (AFP)
+* BitTorrent
+* FTAM
+* FTP / FTP over SSL (FTPS)
+* HFTP
+* HTTP / WebDAV
+* SSH file transfer protocol (SFTP)
+* Secure copy (SCP)
+* Simple File Transfer Protocol
+* rsync
+				</section>
+
+				<section data-markdown>
+### Протоколы передачи файлов
+
+UDP
+* Trivial File Transfer Protocol
+* File Service Protocol
+* UFTP - UDP на основе FTP с Multicast
+* Multicast File Transfer Protocol
+* Tsunami UDP Protocol
+* Multipurpose Transaction Protocol
+
+и другие, например на wiki 
+[Список_протоколов_передачи_файлов](https://ru.wikipedia.org/wiki/Список_протоколов_передачи_файлов)
+				</section>
+
+				<section data-markdown>
+## TFTP
+
+Trivial File Transfer Protocol
+				</section>
+
+				<section data-markdown>
+### TFTP
+
+Часто используется для первоначальной загрузки бездисковых рабочих станций,
+прошивок устройств
+
+Цель разработки - простота реализации клиента
+* RFC 1350 (STD33) - спецификация TFTP
+* RFC 2347 - опции TFTP
+* RFC 2348 - размер блока
+* RFC 2349 - тайм-аут
+
+Порт 69 / udp
+				</section>
+
+				<section data-markdown>
+### Пакет TFTP
+
+```
++----------+------+-------+--------+
+| Ethernet |  IP  |  UDP  |  TFTP  |
++----------+------+-------+--------+
+ ```
+
+В пакете TFTP первое поле (2 байта) определяет тип пакета
+* Read Request (RRQ, 0x01) - запрос на чтение
+* Write Request (WRQ, 0x02) - запрос на запись
+* Data (DATA, 0x03) - данные
+* Acknowledgment (ACK, 0x04) - подтверждение
+* Error (ERR, 0x05) - ошибка
+* Error2 (ERR2, 0x06) - ошибка2
+				</section>
+
+				<section data-markdown>
+### Запросы на чтение и запись
+
+WRQ или RRQ-пакет, у обоих формат одинаковый
+
+```
+2 bytes     string     1 byte    string   1 byte
++--------+------------+------+------------+------+
+| Opcode |  Filename  |   0  |    Mode    |   0  |
++--------+------------+------+------------+------+
+```
+
+2 режима передачи
+* netascii
+* octet
+
+Имя файла - в виртуальной файловой системе
+				</section>
+
+				<section data-markdown>
+### Виртуальная (сетевая) ФС
+
+Классическое определение -
+обеспечивает единый интерфейс системных вызовов (API) для различных типов ФС,
+которые могут быть очень разными по своей реализации, включая сетевые
+
+В протоколах передачи файлов виртуальная ФС нужна,
+чтобы установить соответствие между показываемыми клиенту и реальными каталогами
+
+Аналогия с командой mount в Unix
+				</section>
+
+				<section data-markdown>
+### Пример
+
+из документации Gene6 FTP Server
+![](images/ftp-vfs.png)
+				</section>
+
+				<section data-markdown>
+### Передача данных
+
+```
+  2 bytes      2 bytes     0-512 bytes     2 bytes       2 bytes
++------------+-----------+------------+  +------------+-----------+
+| DAT (0x03) |  Block #  |  Data      |  | ACK (0x04) |  Block #  |
++------------+-----------+------------+  +------------+-----------+
+```
+
+![](images/ftp-tftp-rrq.svg)
+
+![](images/ftp-tftp-dat1-dwn.svg)
+![](images/ftp-tftp-ack1.svg)
+				</section>
+
+				<section data-markdown>
+### Передача данных
+
+После получения RRQ-пакета сервером, он сразу начинает передачу данных
+
+После получения WRQ-пакета сервер должен прислать ACK-пакет c номером пакета 0
+
+По TFTP можно передать 32 Мб (65536*512/1024²), можно увеличить при поддержке расширений протокола
+
+Как определяется конец передачи?
+				</section>
+
+				<section data-markdown>
+### Ошибки
+
+* 0 Нет определенного кода, см. текст ошибки
+* 1 Файл не найден
+* 2 Доступ запрещен
+* 3 Невозможно выделить место на диске
+* 4 Некорректная TFTP-операция
+* 5 Неправильный Transfer ID
+* 6 Файл уже существует
+* 7 Пользователь не существует
+* 8 Неправильная опция
+
+детально не рассматриваем
+				</section>
+
+				<section data-markdown>
+## FTP
+
+File Transfer Protocol
+				</section>
+
+				<section data-markdown>
+### FTP - древний протокол
+
+1971 - первая реализация протокола
+
+1972 - протокол был полностью изменён, и принял вид, близкий к современному
+
+1980 - протокол стал использовать транспортный протокол TCP, RFC 765
+
+1985 - последняя редакция протокола, RFC 959
+
+1997 - дополнение, позволяющее шифровать и подписывать информацию
+
+1999 - дополнение для интернационализации протокола
+				</section>
+
+				<section data-markdown>
+### Зачем?
+
+Убирают поддержку в браузерах
+
+Есть более современные протоколы
+
+Однако, устройства обновлять сложно
+
+У FTP есть особенности, встречающиеся в современных протоколах
+				</section>
+
+				<section data-markdown>
+### Схема работы протокола
+
+![](images/ftp-ftp-model.png)
+				</section>
+
+				<section data-markdown>
+### Этапы работы FTP для пользователя
+
+* Соединение 21/tcp - интерпретатор команд (Server PI)
+* Аутентификация (ввод имени и пароля)
+* Выбор каталога
+* Определение режима обмена (ascii/binary)
+* Выполнение команд обмена
+* Завершение процедуры
+				</section>
+
+				<section data-markdown>
+### Пример сеанса
+
+```
+→		220-Hello
+→		220 FTP server ready
+	←	USER ftp
+→		331 Password required
+	←	PASS e@mail.ru
+→		230 Login successful
+	←	LIST
+→		150 Here comes the directory listing
+→		226 Directory send OK.
+	←	CWD incoming
+→		250 Directory successfully changed
+	←	STOR file.txt
+→		150 Ok to send data
+→		226 File receive OK
+	←	QUIT
+→		221 Goodbye
+```
+				</section>
+
+
+				<section data-markdown>
+### Коды ответов FTP
+
+Первая цифра
+* 2xx - Успешный ответ
+* 4xx/5xx - Команда не может быть выполнена
+* 1xx/3xx - Ошибка или неполный ответ
+
+Вторая цифра - подсистема
+* x0z - Синтаксическая
+* x1z - Информация
+* x2z - Соединения
+* x3z - Аутентификация и права пользователя
+* x5z - Файловая система
+
+Третья цифра окончательно локализует ошибку
+				</section>
+
+				<section data-markdown>
+### Data connection
+
+telnet mirror.yandex.ru 21
+
+```
+$ netstat -n | grep :21
+tcp   0   0    10.2.24.3:56604  213.180.204.183:21  ESTABLISHED
+
+$ ss -n dport = 21
+Netid State Recv-Q Send-Q Local Address:Port  Peer Address:Port
+tcp   ESTAB 0      0         10.2.24.3:56408  213.180.204.183:21
+```
+
+Кто устанавливает второе соединение (LIST)?
+
+```
+220 Welcome to Yandex Mirror FTP service
+USER ftp
+331 Please specify the password
+PASS e@mail.ru
+230 Login successful
+LIST
+150 Here comes the directory listing
+226 Directory send OK
+```
+				</section>
+
+				<section data-markdown>
+### Поведение по умолчанию
+
+DATA connection устанавливает сервер
+
+```
+The mechanics of transferring data consists of setting up the data
+connection to the appropriate ports and choosing the parameters
+for transfer.  Both the user and the server-DTPs have a default
+data port.  The user-process default data port is the same as the
+control connection port (i.e., U).  The server-process default
+data port is the port adjacent to the control connection port
+(i.e., L-1).
+```
+
+Это наследие от предшественника TCP - Host-Host
+
+Есть проблемы
+* сможет обычный клиент открыть порт &lt;1024 ?
+* однопоточность
+				</section>
+
+				<section data-markdown>
+### Активный режим работы
+
+DATA connection устанавливает сервер
+
+Клиент может сменить порт на другой -
+открыть слушающий сокет и информировать сервер
+```
+	←	PORT 192,168,1,2,p1,p2
+```
+номер порта = $p1 \cdot 256 + p2$
+
+Проблемы всё равно есть
+![](images/ftp-nat1.png)
+				</section>
+
+				<section data-markdown>
+### Пассивный режим работы
+
+Клиент устанавливает DATA connection
+
+Сервер открывает сокет и ждёт, должен сообщить клиенту
+```
+	←	PASV 
+→		227 Entering Passive Mode ip1,ip2,ip3,ip4,port1,port2
+```
+
+Направление передачи данных (LIST/REST/STOR) не зависит от того, кто устанавливал соединение
+
+![](images/ftp-nat2.png)
+				</section>
+
+				<section data-markdown>
+### Похожие протоколы
+
+Session Initiation Protocol (SIP) - для организации, модификации и завершения сеансов связи: мультимедийных конференций, телефонных соединений
+* похожая организация и те же проблемы
+
+Как можно решить?
+* нарушить OSI на сервере NAT
+* UPnP
+				</section>
+
+				<section data-markdown>
+## BitTorrent
+				</section>
+
+				<section data-markdown>
+### Постановка задачи
+
+Задача: передать файлы от одного пользователя к другому через Интернет
+
+Решение: HTTP или FTP сервер, файлы хранятся на сервере
+
+Проблемы:
+* пропускной канал сервера
+* единая точка отказа
+
+Альтернатива: пиринговые сети
+				</section>
+
+				<section data-markdown>
+### Пиринговая сеть
+
+Peer-to-peer, P2P (равный к равному) сеть основана на равноправии участников
+* выделенные серверы отсутствуют
+* каждый узел (peer) - как клиент, так и сервер
+* файлы хранятся на каждом узле
+* передача одновременно с любых узлов
+
+Варианты архитектуры
+- децентрализованная
+- частично децентрализованная (гибридная)
+  - сервера для вспомогательной работы
+				</section>
+
+				<section data-markdown>
+### История
+
+Napster (1999-2001) - первый сервис, свободный обмен музыкой, остановлен по решению суда
+
+Kad (2002) - децентрализованная сеть поиска, используется совместно с eDonkey,
+использует распределенные хэш таблицы Kademlia
+
+eDonkey - частично децентрализованная сеть обмена файлами, серверы используются только для координации клиентов
+				</section>
+
+				<section data-markdown>
+### История
+
+Direct Connect - гибридная сеть, состоящая из серверов (хабов) и клиентов.
+Встроен чат, живые операторы, контролирующие соблюдение правил чата и файлообмена
+
+BitTorrent - гибридная сеть,состоящая из серверов (трекеров) и клиентов.
+Протокол разработан в 2001 Бремом Коэном.
+				</section>
+
+				<section data-markdown>
+### Что почитать
+
+http://bittorrent.org/beps/bep_0000.html
+
+https://wiki.theory.org/index.php/BitTorrentSpecification
+
+TODO
+
+Bitstorm https://gist.github.com/nsuan/1967006
+
+https://github.com/chihaya/chihaya
+				</section>
+
+				<section data-markdown>
+### Принцип работы BitTorrent
+
+Источник создает файл метаданных, связывая с сервером-трекером, передает его пользователям
+
+Используя ПО торрент-клиента источник «встает на раздачу», и становится сидом
+* (seed-сеять) - peer, имеющий файлы целиком
+
+Пользователи начинают скачивать файлы, используя клиент, и становятся личерами
+* (leech-пиявка) - peer, не имеющий пока файлов целиком
+
+Личеры, полностью скачавшие файлы, становятся сидами
+				</section>
+
+				<section data-markdown>
+### Особенности работы
+
+Исходные файлы делятся на части одинакового размера - сегменты (pieces), напр. 4 Мб
+
+Сегменты делятся на части одинакового размера - блоки (blocks), размер 64-4096Кб
+
+Каждый peer скачивает каждый сегмент только один раз (при отсутствии ошибок)
+
+Проверка целостности скачанной раздачи и каждого сегмента в отдельности
+				</section>
+
+				<section data-markdown>
+### Файл метаданных
+
+Словарь в bencode формате (файл .torrent)
+
+Содержит метаданные различного типа
+* информация о файлах в раздаче
+* имена
+* размер
+* расположение
+* хэш файлов и раздачи в целом
+* ссылки на торрент трекеры
+* данные используемые расширениями
+* поддержка альтернативных протоколов
+* дополнительные опции
+				</section>
+
+				<section data-markdown>
+### Кодирование bencode
+
+Использует числа и ASCII символы
+
+Поддерживаемые типы
+* Целое число, синтаксис: i&lt;число&gt;e
+  - i30e, i-42e, i0e
+* Произвольные строки (в т.ч. бинарные данные), синтаксис: &lt;длина&gt;:&lt;данные&gt;
+  - 6:primat, 0:
+
+Все строки кодируются в UTF-8
+				</section>
+
+				<section data-markdown>
+### Кодирование bencode
+
+Поддерживаемые типы
+* Список значений, синтаксис: l&lt;список&gt;e
+  - &lt;список&gt; - последовательность bencoded значений
+  - li30e3:fooi0ee
+* Словарь, синтаксис - d&lt;словарь&gt;e
+  - &lt;словарь&gt; - список пар &lt;ключ&gt;&lt;значение&gt;
+  - &lt;ключ&gt; - произвольная строка
+  - d9:publisher3:bob18:publisher.location4:homee
+				</section>
+
+				<section data-markdown>
+### Кодирование bencode
+
+Как будет закодирован словарь
+```
+{ "cow" => "moo", "spam" => "eggs" }
+```
+* d3:cow3:moo4:spam4:eggse
+
+```
+{ "spam" => [ "a", "b", -4 ] }
+```
+* d4:spaml1:a1:bi-4eee
+				</section>
+
+				<section data-markdown>
+### метаданные - словарь
+
+* announce - URL трекера
+* info - словарь
+* name - имя файла/имя корневой директории
+* piece length - размер сегмента
+* pieces - строка, объединение SHA1 хешей
+* length - размер файла в байтах (если он один)
+* files - список словарей для каждого файла
+  - path - путь до файла относительно корневой директории
+  - length - размер файла в байтах
+				</section>
+
+				<section data-markdown>
+### Примеры метаданных
+
+```
+{
+  'announce': 'http://retracker.local/announce',
+  'info': {
+    'name': ‘Disk.iso',
+    'piece length': 262144,
+    'length': 678301696,
+    'pieces':<SHA-1 160-bit hash>
+  }
+}
+```
+
+```
+{
+  'announce': 'http://retracker.local/announce',
+  'info': {
+    'name': 'directoryName',
+    'piece length': 262144,
+    'files': [ {'path': '111.txt', 'length': 111},
+               {'path': '222.txt', 'length': 222} ],
+    'pieces': <SHA-1 160-bit hash x2>
+  }
+}
+```
+				</section>
+
+				<section data-markdown>
+### BitTorrent-трекер
+
+Веб-сервер, основная задача - координация
+* связать новых клиентов друг с другом
+
+Часто работает совместно с сайтом для пользователей - форума или каталога
+
+Вспомогательные задачи
+* сохраняет в базе данных статистику раздач
+* объёмы переданных данных
+* количество узлов на каждой раздаче
+				</section>
+
+				<section data-markdown>
+### Этапы работы протокола
+
+Обновление (announce)
+* клиент соединяется с трекером, сообщая информацию о файле
+* в ответ получает адреса других клиентов
+
+Основной этап
+* клиенты обмениваются сегментами
+* клиенты информируют трекер о ходе процесса и обновляют список адресов
+
+Завершение (режим End Game)
+
+Сидирование
+				</section>
+
+				<section data-markdown>
+### Этап обновления
+
+HTTP-запрос (GET)
+```
+GET /announce?info_hash=%1b%f2%b7HL%c1n%89%17%eb%0e%f2%db%94N%e1%95%ca%2f%15&peer_id=-UT355W-%28%b2%e3%d5qOb%3b%b8%21%8f%d6&port=11703&uploaded=0&downloaded=0&left=13&corrupt=0&key=6ADB6B36&event=started&numwant=200&compact=1&no_peer_id=1
+```
+
+* info_hash - SHA-1 хэш значения ключа info файла метаданных (не самих данных)
+* peer_id - уникальный ID клиента
+* peer_ip - адрес клиента (необязателен)
+* port - порт, который слушает клиент
+* uploaded, downloaded
+* left - байт, оставшихся до завершения
+* event - тип события, started/stopped, completed
+				</section>
+
+				<section data-markdown>
+### Этап обновления
+
+Ответ трекера - bencoded словарь
+
+Ошибка: failure reason - строка с описанием
+
+Успех
+* interval - секунд до следующего запроса
+* tracker id - строка, клиент посылает обратно трекеру при запросах
+* peers - список
+  * peer_id - уникальный ID пира
+  * ip - ip адрес пира
+  * port - порт пира
+
+				</section>
+
+				<section data-markdown>
+### Этап обмена данными
+
+Используется TCP, некоторые клиенты умеют UDP
+
+Соединения между пирами симметричны
+
+Протокол оперирует сегментами и блоками по индексу,
+обмен ведется блоками
+
+Стадии обмена
+* приветствие - соединение пиров, обмен информации об имеющихся сегментах
+* обмен данными по специальному алгоритму
+* проверка скачанных данных
+				</section>
+
+				<section data-markdown>
+### Алгоритм обмена данными
+
+Уже установлено оединение между 2 клиентами
+
+Флаги соединения с каждой стороны
+* choking - «мы» душим соседа, т. е. не желаем передавать ему данные
+* interested - «мы» заинтересованы в соседе, у него есть сегменты или блоки, нужные нам
+
+Сначала все друг друга душат и не интересуются
+```
+am_choking := 1, am_interested := 0
+peer_choking := 1, peer_interested := 0
+```
+				</section>
+
+				<section data-markdown>
+### Пока есть не все сегменты
+
+1. Обновление параметров соединения
+  * обновление битов interested при появлении у пира требуемых сегментов
+  * обновление битов choking по правилам
+2. Передача данных
+
+Условие передачи от нас к peer
+```
+am_choking = 0, peer_interested = 1
+```
+
+Выбор сегментов для обмена
+* приоритет редким сегментам
+* среди редких - выбор случаен
+				</section>
+
+				<section data-markdown>
+### Обновление choking
+
+Каждый peer должен стремиться отдать столько же сколько и скачать («ты мне - я тебе»)
+
+Если peer нарушает, к нему применяется удушение - временная блокировка отдачи
+
+Разблокировка происходит как только peer выравнивает соотношение (upload rate)
+
+Оптимистическая разблокировка
+* Всегда есть peer разблокированный независимо от upload rate
+* Он регулярно меняется каждые 30 сек
+				</section>
+
+				<section data-markdown>
+### Протокол обмена данными
+
+1. Приветствие (Handshaking)
+  * префикс - ASCII символ с кодом 19
+  * строка “BitTorrent protocol”
+  * SHA-1 hash из метафайла
+  * peer id
+
+2. Обмен сообщениями
+  * keepalives - сообщения длины 0
+   * non-keepalives - состоят из типа (число 0 до 8) и данных
+				</section>
+
+				<section data-markdown>
+### Типы сообщений
+
+choke(0), unchoke(1), interested(2), not interested(3) - cопутствующие данные отсутствуют
+
+bitfield(4) - посылается один раз,
+данные - битовая маска сегментов, имеющихся у peer
+
+have(5) - информирует peer о новом полученном и проверенном сегменте,
+данные - число, индекс сегмента
+
+request(6) - запрос блока,
+данные - индекс сегмента, смещение и размер
+</section>
+
+				<section data-markdown>
+### Типы сообщений
+
+piece(7) - получение части сегмента,
+данные - индекс сегмента, смещение, данные
+
+cancel(8) - отмена запроса,
+данные - индекс, смещение, размер
+
+(9-255) - сообщения доступные расширениям
+
+				</section>
+
+				<section data-markdown>
+### Режим End Game
+
+Специальный режим в конце скачивания
+*  Клиент запрашивает все оставшиеся блоки у всех подключенных пиров
+*  После получения блока отменяет запрос всем остальным пирам
+*  Условие входа не фиксировано, варианты
+  - все сегменты запрошены
+  - количество оставшихся блоков меньше количества передаваемых блоков
+
+				</section>
+
+				<section data-markdown>
+### Режим сидирования
+
+Режим клиента, когда владеет всеми сегментами
+*  отдает данные
+*  производит обновление на трекере
+*  не делает choke по рейтингу
+
+Режим super-seed
+* маскируемся как peer не имеющий сегментов
+* при подключении клиента оповещам его о наличии единственного сегмента, которого еще ни у кого нет
+* используется для старта большой раздачи с единственным источником
+* время первого скачивания раздачи уменьшается в 1,5-2 раза
+				</section>
+
+				<section data-markdown>
+### Расширения протокола
+
+Определение поддерживаемых расширений во время приветствия
+
+Официальные расширения
+* Fast Peers
+  - добавляет сообщения: Have All (0x0E), Have None (0x0F),
+	Suggest piece (0x0D), Reject Request (0x10), Allowed Fast (0x11)
+* Distributed Hash Table - расширение безтрекерного обмена
+* Шифрование соединения
+				</section>
+					
+				<section data-markdown>
+### Безтрекерный обмен
+
+Реализован при помощи расширений
+* DHT (Distributed Hash Table) - механизм обнаружения и
+  соединения пиров, в основе реализация Kademlia
+* PEX (Peer exchange) - расширение протокола для обмена списками известных пиров
+* Magnet links - ссылка на файлы, находящиеся у источника в p2p сети
+
+```
+magnet:?xt=urn:btih:1BF2B7484CC16E8917EB0EF2DB944EE195CA2F15
+&dn=HELLOWORLD.TXT&tr=http%3a%2f%2fretracker.local%2fannounce
+```
+				</section>
+
+				<section data-markdown>
+# Вопросы ?
+
+| TCP                               | UDP                                  |
+|-----------------------------------|--------------------------------------|
+| Apple Filing Protocol (AFP)       | Trivial File Transfer Protocol       |
+| BitTorrent                        | File Service Protocol                |
+| FTAM                              | UFTP - UDP на основе FTP с Multicast |
+| FTP / FTP over SSL (FTPS)         | Multicast File Transfer Protocol     |
+| HFTP                              | Tsunami UDP Protocol                 |
+| HTTP / WebDAV                     | Multipurpose Transaction Protocol    |
+| SSH file transfer protocol (SFTP) |                                      |
+| Secure copy (SCP)                 |                                      |
+| Simple File Transfer Protocol     |                                      |
+| rsync                             |                                      |
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/math/math.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
