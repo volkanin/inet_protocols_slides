@@ -1,0 +1,934 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+		<style type="text/css">.reveal blockquote { font-size: 50%; }</style>
+		<style type="text/css">.reveal table { font-size: 70%; }</style>
+		<style type="text/css">.reveal p img { border: 0px; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# Транспортные протоколы
+
+Протоколы Интернет, лекция 8
+				</section>
+
+				<section data-markdown>
+### План
+
+> Нужно бежать со всех ног, чтобы только оставаться на месте,
+> а чтобы куда-то попасть, надо бежать как минимум вдвое быстрее
+
+* Telnet
+* SSH
+* TLS + сертификаты
+* TCP и Slow start / Nagle
+				</section>
+
+				<section data-markdown>
+### Базовый транспорт
+
+Какой транспорт у FTP / SMTP / POP3 / IMAP ?
+
+С одной стороны – очевидно
+* 21 / tcp
+* 25 / tcp
+* 110 / tcp
+* 143 / tcp
+
+С другой стороны... в RFC 959 (FTP)
+```
+control connection
+
+The communication path between the USER-PI and SERVER-PI for
+the exchange of commands and replies. This connection follows
+the Telnet Protocol.
+```
+				</section>
+
+				<section data-markdown>
+## Terminal network protocol
+
+Telnet, RFC 854, обновлен RFC 5198
+
+Оба конца TCP-соединения играют роль NVT (сетевых виртуальных терминалов)
+* прикладные данные
+* команды протокола Telnet, в т.ч. опции согласования возможностей и предпочтений
+
+Не предусмотрено использование ни шифрования, ни проверки подлинности данных
+
+0xFF - начало управляющей последовательности
+				</section>
+
+				<section data-markdown>
+Управляющие последовательности (для справки)
+
+| Название          | Код      | Описание                                 |
+|-------------------|----------|------------------------------------------|
+| SE                | 240/0xF0 | Завершает согласование, начатое SB       |
+| NOP               | 241/0xF1 | Нет операции                             |
+| Data Mark         | 242/0xF2 | Синхронизация обмена (+TCP Urgent)       |
+| Break             | 243/0xF3 | Нажата кнопка «Break» или «Attention»    |
+| Interrupt Process | 244/0xF4 | Приостанавливает или  прерывает процесс  |
+| Abort output      | 245/0xF5 | Подавление вывода текущего процесса      |
+| Are You There     | 246/0xF6 | Отправляет обратно ответ терминала       |
+| Erase character   | 247/0xF7 | Стереть предыдущий символ, если возможно |
+| Erase Line        | 248/0xF8 | Стереть последнюю введённую строку       |
+				</section>
+
+				<section data-markdown>
+Управляющие последовательности (для справки)
+
+| Название    | Код      | Описание                                             |
+|-------------|----------|------------------------------------------------------|
+| Go ahead    | 249/0xF9 | Ожидается передача данных                            |
+| SB          | 250/0xFA | Начало согласования опции с параметрами              |
+| WILL опция  | 251/0xFB | Подтверждает желание исполнять опцию                 |
+| WON’T опция | 252/0xFC | Отказ начать / продолжить исполнять указанную опцию  |
+| DO опция    | 253/0xFD | Запрос на исполнение / подтверждение указанной опции |
+| DON’T опция | 254/0xFE | Требование остановить исполнение указанной опции     |
+| IAC         | 255/0XFF | Байт данных 255                                      |
+				</section>
+
+				<section data-markdown>
+### Использовать ли утилиту Telnet ?
+
+* Клиент может передать данные, которые вы не вводили (опции Telnet)
+* Клиент может искажать или не принимать  октет 0xFF
+
+![](images/ftp-telnet-newfolder.png)
+
+В правильных мануалах используют netcat (nc)
+				</section>
+
+				<section data-markdown>
+## SSH
+
+The Secure Shell (SSH) Protocol
+				</section>
+
+				<section data-markdown>
+### Спецификации
+
+[openssh.com/specs.html](https://www.openssh.com/specs.html)
+* RFC 4250 - 4254
+* The Secure Shell (SSH) Protocol Assigned Numbers
+* The Secure Shell (SSH) Protocol Architecture
+* The Secure Shell (SSH) Authentication Protocol
+* The Secure Shell (SSH) Transport Layer Protocol
+* The Secure Shell (SSH) Connection Protocol
+
+Note:
+https://habr.com/ru/post/425637/
+				</section>
+
+				<section data-markdown>
+### Особенности архитектуры
+
+У сервера открытый+закрытый ключ (Host Keys)
+* может быть несколько, разных алгоритмов
+* клиент хранит базу серверов/открытых ключей
+* клиент может подтвердить подлинность сервера, используя DNS
+				</section>
+
+				<section data-markdown>
+### Уровни SSH
+
+Алгоритмы SSH можно разделить на три уровня
+* транспорт (открытие защищённого канала)
+* аутентификация
+* подключение
+
+Предварительно требуется установка TCP-соединения (обычно 22/tcp)
+* как присвоили номер порта - [habr.com/post/418533](https://habr.com/post/418533/)
+				</section>
+
+				<section data-markdown>
+### Сообщения SSH
+
+По TCP-соединению передаются сообщения SSH
+```
+uint32    packet_length			(без MAC и packet_length)
+byte      padding_length
+byte[n1]  payload; n1 = packet_length - padding_length - 1
+byte[n2]  random padding; n2 = padding_length
+byte[m]   mac (Message Authentication Code - MAC); m = mac_length
+```
+
+payload может быть сжат, внутри - код номера сообщения и его данные
+
+$$
+mac = MAC(key, \text{sequence_number} || \text{unencrypted_packet})
+$$
+только для зашифрованных сообщений
+				</section>
+
+				<section data-markdown>
+### Номера сообщений SSH
+
+Transport layer protocol
+```
+1 to 19    Transport layer generic (e.g., disconnect, ignore,
+			debug, etc.)
+20 to 29   Algorithm negotiation
+30 to 49   Key exchange method specific (numbers can be reused
+			for different authentication methods)
+```
+
+User authentication protocol
+```
+50 to 59   User authentication generic
+60 to 79   User authentication method specific (numbers can be
+			reused for different authentication methods)
+```
+
+Connection protocol
+```
+   80 to 89   Connection protocol generic
+   90 to 127  Channel related messages
+```
+				</section>
+
+				<section data-markdown>
+### Открытие защищенного канала
+
+Обмен идентификационными данными
+
+Выбор алгоритмов: обмена ключами, шифрования, сжатия 
+
+Проверка подлинности сервера и получение сессионного ключа шифрования
+
+Демонстрация: откройте в Wireshark дамп samples/ssh-init.pcap, отбор по фильтру ssh
+
+NOTE:
+tcpdump -c 0 -w ssh-init.pcap -i eth0 -c 15 port ssh and ip host 10.0.0.1
+				</section>
+
+				<section data-markdown>
+### Идентификационные данные
+
+После установки TCP-соединения клиент и сервер обмениваются версиями SSH-протокола
+
+```
+SSH-protoversion-softwareversion SP comments CR LF
+```
+
+* softwareversion может влиять на режимы совместимости
+* строки идентификации используются при подтверждении подлинности сторон
+* потом - бинарные данные
+				</section>
+
+				<section data-markdown>
+### Согласование алгоритмов
+
+Для обмена ключами, шифрования, сжатия 
+
+Список доступных алгоритмов обмена ключами
+```
+$ ssh -Q kex
+...
+diffie-hellman-group14-sha1
+curve25519-sha256@libssh.org
+...
+```
+
+Список доступных симметричных алгоритмов
+```
+$ ssh -Q cipher
+```
+
+Список типов ключей для авторизации у клиента
+```
+$ ssh -Q key-cert
+```
+				</section>
+
+				<section data-markdown>
+### Согласование алгоритмов
+
+```
+byte         SSH_MSG_KEXINIT				(20)
+byte[16]     cookie (random bytes)
+name-list    kex_algorithms
+name-list    server_host_key_algorithms
+name-list    encryption_algorithms_client_to_server
+name-list    encryption_algorithms_server_to_client
+name-list    mac_algorithms_client_to_server
+name-list    mac_algorithms_server_to_client
+name-list    compression_algorithms_client_to_server
+name-list    compression_algorithms_server_to_client
+name-list    languages_client_to_server
+name-list    languages_server_to_client
+boolean      first_kex_packet_follows
+uint32       0 (reserved for future extension)
+```
+
+Клиент и сервер выбирают первый совпавший алгоритм в каждом списке
+(из поддерживаемых)
+				</section>
+
+				<section data-markdown>
+### Получение ключей
+
+От клиента
+```
+byte      SSH_MSG_KEXDH_INIT			(30)
+mpint     e
+```
+
+$ p - \text{большое простое число} $
+
+$ g - \text{генератор подгруппы конечного поля } GF(p) $
+
+$ q - \text{порядок подгруппы} $
+
+известны, diffie-hellman-group14-sha1 - [RFC 3526](https://tools.ietf.org/html/rfc3526)
+
+Клиент выбирает случайное число $ x (1 < x < q) $
+
+$ e = g^x \mod p $
+				</section>
+
+				<section data-markdown>
+### Получение ключей
+
+От сервера
+```
+byte      SSH_MSG_KEXDH_REPLY			(31)
+string    server public host key and certificates (K_S)
+mpint     f
+string    signature of H
+```
+
+K_S - открытый ключ сервера
+
+H - хеш, RFC 4253, «8. Diffie-Hellman Key Exchange»
+
+Сервер выбирает случайное число $ y (1 < y < q) $
+
+$ f = g^y \mod p $
+
+Общий ключ $ K = e^y \mod p = f^x \mod p$
+				</section>
+
+				<section data-markdown>
+### Получение ключей
+
+Обмен ключами дает два значения - общий секретный ключ K и хэш обмена H
+
+Ключи шифрования и аутентификации являются производными от них,
+RFC 4253, «7.2.  Output from Key Exchange»
+* Encryption key client to server
+* Encryption key server to client
+* Integrity key client to server
+* Integrity key server to client
+				</section>
+
+				<section data-markdown>
+### Подлинность сервера
+
+Сервер отсылает свой открытый ключ
+
+Если клиент производит соединение с данным сервером впервые, пользователю будет задан вопрос о доверии ключу сервера
+
+Если с сервером ранее устанавливалось соединение, клиент сравнивает присланный ключ с сохраненным в ~/.ssh/[known_hosts](https://habr.com/post/421477/)
+
+Если ключи не совпадают, пользователь получит предупреждение о возможной попытке взлома
+				</section>
+
+				<section data-markdown>
+### Подлинность сервера
+
+K_S - это ключ в чистом виде (не сертификат), поэтому непонятно чей он
+* не волноваться, риск обмана маленький
+* сравнить с ключом, полученным по другому
+  - на соседнем ноутбуке
+  - по телефону у администратора
+  - в DNS
+				</section>
+
+				<section data-markdown>
+### Подлинность сервера
+
+В DNS можно поместить отпечаток ключа
+```
+$ cat /etc/ssh/ssh_host_rsa_key.pub
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDOANt9KSwit5GN0Xehq3/SMtUEf5v9xeOdrVGQwa4/ZZqU6mHb3/yPdCTwZQgS9OpnDaGEDUnlYsz+pspxc2ZZHgemJur/JeKV45c/vY25qlHMKRgMGMNUVkz8dC1oMJgLoG2t8vuKt1JSIAhC1lJtMudOzZJcAmafjo/9eggKx5JdN55uNz1p1LL97xAYKvax58sfPc6M9OkBnMiZCzO2XU2GDDDUh0db1M9NDv/f62eKXSS8z4f4By/fasJAz5D2xRSWxnRKZImxI4SNRQCBYW10rIHn4V1ELFerrNLtUvozN+0Fc4BoGctdh2JHc8UvdOhcZ1NpbpnhpfxQNc5f
+$ !! | awk '{print $2}' | base64 -d | sha1sum
+8cd2a4919a56df2c3c7d8887605e9a8eeea0017c
+```
+
+Обычно используется команда
+```
+$ ssh-keygen -r my.domain.com
+```
+
+Клиент делает запрос к DNS
+```
+$ host -t sshfp spica.usaaa.ru
+spica.usaaa.ru. IN SSHFP 1 1 8CD2A4919A56DF2C3C7D8887605E9A8EEEA0017C
+```
+				</section>
+
+				<section data-markdown>
+### Подлинность сервера
+
+Другой способ - [DANE](https://en.wikipedia.org/wiki/DNS-based_Authentication_of_Named_Entities),
+DNS-based Authentication of Named Entities,
+[RFC 6698](https://tools.ietf.org/html/rfc6698)
+
+Идея аналогична SSHFP, но без привязки к SSH
+```
+_25._tcp.example.com IN TLSA 1 1 1 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef012345 
+```
+
+Если серверов много, возможна проверка через инфраструктуру PKI, одна точка доверия
+				</section>
+
+				<section data-markdown>
+### Аутентификация клиента
+
+Проверка по имени и паролю - необязательная
+
+После установки защищенного канала
+
+```
+byte      SSH_MSG_USERAUTH_REQUEST			(50)
+string    user name
+string    service name						("ssh-userauth")
+string    "password"
+boolean   FALSE
+string    plaintext password in ISO-10646 UTF-8 encoding [RFC3629]
+```
+				</section>
+
+				<section data-markdown>
+### Аутентификация клиента
+
+Проверка по открытому ключу (publickey)
+
+* клиент отсылает серверу имя пользователя (username) и свой публичный ключ
+  - может быть много пар ключей, они все будут отправлены в запросах
+* сервер проверяет наличие в файле /home/username/.ssh/authorized_keys присланного открытого ключа
+* если открытый ключ найден, сервер просит продолжать
+				</section>
+
+				<section data-markdown>
+### Аутентификация клиента
+
+клиент зашифровывает закрытым ключом
+
+```
+string    session identifier					(хеш H)
+byte      SSH_MSG_USERAUTH_REQUEST				(50)
+string    user name
+string    service name						("ssh-userauth")
+string    "publickey"
+boolean   TRUE
+string    public key algorithm name
+string    public key to be used for authentication
+```
+
+посылает эту структуру в открытом виде, добавляя вычисленную подпись
+```
+string    signature
+```
+
+Если расшифровка успешна, проверка пройдена
+				</section>
+
+				<section data-markdown>
+### Уровень подключения
+
+После проведения перечисленных процедур, пользователь получает возможность передавать команды серверу или копировать файлы
+
+На этом уровне обеспечивается
+* мультиплицирование каналов (работа множества каналов к одному серверу за счет объединения их в один канал)
+* [туннелирование](https://ru.wikibooks.org/wiki/SSH_туннелирование)
+* и т.п.
+				</section>
+
+				<section data-markdown>
+### Применение
+
+Авторизация на новом сервере
+* обычно publickey
+* создание ВМ/контейнера по шаблону
+* автоматическая настройка (ansible и пр.)
+
+Протоколы передачи файлов: scp, git, sFTP
+				</section>
+
+				<section data-markdown>
+## Защищённое соединение
+				</section>
+
+				<section data-markdown>
+### Transport Layer Security
+
+Как работает TLS
+* в технических подробностях [tls.dxdt.ru](https://tls.dxdt.ru/tls.html)
+* в картинках [habr.com/post/258285	](https://habr.com/ru/post/258285/)
+* [RFC 5246](https://tools.ietf.org/html/rfc5246) - TLS 1.2
+* [RFC 8446](https://tools.ietf.org/html/rfc8446) - TLS 1.3
+
+Особенности TLS
+* безопасный канал данных
+* подлинность сервера (и клиента)
+* целостность информации (коды MAC)
+				</section>
+
+				<section data-markdown>
+### Пример использования
+
+Из командной строки - пакет openssl
+```
+$ openssl s_client -connect smtp.mail.ru:465
+$ openssl s_client -connect smtp.mail.ru:25  -starttls smtp
+```
+
+В Python можно так
+```
+import ssl
+sock = socket.socket(socket.AF_INET,socket.SOCK_STREAM);
+ssl_sock = ssl.SSLSocket(sock);
+ssl_sock.connect((SMTP_SERVER,SMTP_PORT));
+```
+
+или так (если соединение уже установлено)
+```
+...
+# прочитайте предварительно все данные из сокета
+ssl_sock = ssl.wrap_socket(sock)
+```
+				</section>
+
+				<section data-markdown>
+### Место в OSI
+
+![](images/tls-osi.png)
+				</section>
+
+				<section data-markdown>
+### TLS Record
+
+В потоке TCP передаются записи, их заголовок (5 байт) всегда передаётся в открытом виде
+
+```
+00	Тип (1 байт)
+01	Версия протокола (2 байта)
+03	Длина данных	(2 байта)
+```
+
+Определено четыре типа записи
+* 20 (0x14) - Change Cipher Spec, момент перехода к защищённому обмену
+* 21 (0x15) - Alert
+* 22 (0x16) - Handshake
+* 23 (0x17) - Application Data (полезная нагрузка)
+				</section>
+
+				<section data-markdown>
+### TLS Record
+
+Версия протокола (2 байта)
+* 03 00 - SSLv3
+* 03 01 - TLS 1.0
+* 03 02 - TLS 1.1
+* 03 03 - TLS 1.2
+* TLS 1.3 тоже использует значение 03 03, само поле при этом игнорируется
+
+Внутри записей каждого типа передаются свои сообщения (ClientHello, ServerHello, KeyExchange, Certificate), со своей структурой
+				</section>
+
+				<section data-markdown>
+### Данные записи
+
+Максимальная длина данных в записи (до v1.3) - 18432 байта (16384 + 1024 + 1024),
+в т.ч. 1024 - на структуры сжатия, 1024 - на MAC
+
+Обычно размер данных сильно меньше
+
+[MAC](https://ru.wikipedia.org/wiki/Имитовставка), код аутентификации сообщения, имитовставка - важнейший элемент защиты в TLS
+
+Обычно используется HMAC ( [RFC 2104](https://tools.ietf.org/html/rfc2104) ), типичный выбор хеш-функций SHA-1 или SHA-256
+				</section>
+
+				<section data-markdown>
+### Cipher Suites
+
+Клиент и сервер на этапе Handshake согласуют используемый шифронабор
+
+В TLS 1.2 и младше в шифронабор входят:
+* криптосистема, используемая для аутентификации (сервера и секрета сеанса)
+* шифр для защиты передаваемых данных в симметричном режиме
+* хеш-функция, основа для HMAC
+
+IANA - [реестр](https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml) и нумерация шифронаборов (обозначается двухбайтовым индексом)
+				</section>
+
+				<section data-markdown>
+### Cipher Suites
+
+Кроме индексов, существуют стандартные символьные имена для шифронаборов
+* используются в файлах описания конфигурации серверов
+
+```
+$ cat /etc/letsencrypt/options-ssl-nginx.conf
+ssl_protocols TLSv1 TLSv1.1 TLSv1.2;
+ssl_prefer_server_ciphers on;
+ssl_ciphers "ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-AES128-SHA256:ECDHE-RSA-AES128-SHA256:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES256-SHA384:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA384:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:DHE-RSA-AES128-SHA256:DHE-RSA-AES128-SHA:DHE-RSA-AES256-SHA256:DHE-RSA-AES256-SHA:ECDHE-ECDSA-DES-CBC3-SHA:ECDHE-RSA-DES-CBC3-SHA:EDH-RSA-DES-CBC3-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA256:AES256-SHA256:AES128-SHA:AES256-SHA:DES-CBC3-SHA:!DSS";
+```
+
+Сейчас хороший шифронабор для TLS 1.2 TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA256
+
+Note:
+TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA256
+* генерация общего секрета по протоколу Диффи-Хеллмана на эллиптических кривых
+* для аутентификации данных на этапе установления соединения используется криптосистема электронной подписи ECDSA
+  (Elliptic Curve Digital Signature Algorithm, тоже на эллиптических кривых)
+* полезная нагрузка зашифровывается AES с 256-битным ключом в режиме GCM
+* в качестве хеш-функции служит SHA-256
+				</section>
+
+				<section data-markdown>
+### Handshake
+
+![](images/tls-handshake.png)
+				</section>
+
+				<section data-markdown>
+### Handshake
+
+За исключением технических деталей,
+от SSH принципиально рукопожатие не отличается
+* возможны сокращенные варианты
+  - возобновление сессии TLS
+  - TLS False Start
+				</section>
+
+				<section data-markdown>
+### Проверка подлинности
+
+Проблема на этапе подтверждения подлинности другой стороны (сервера)
+* обычный пользователь не поймет
+* серверов очень много (не как SSH)
+
+Варианты
+* сократить число точек доверия
+* автоматизировать проверки
+				</section>
+
+				<section data-markdown>
+### Проверка подлинности
+
+В сообщении Certificates этапа Handshake передается сертификат сервера
+
+X.509 - стандарт ITU для PKI, в т.ч формат сертификата открытого ключа
+* версия 3 - RFC 5280
+				</section>
+
+				<section data-markdown>
+### Структура X.509
+
+* Certificate
+  - Version
+  - Serial Number
+  - Algorithm ID
+  - Issuer
+  - Validity
+    * Not Before
+    * Not After
+   - Subject
+   - Subject public key info
+* Certificate Signature Algorithm
+* Certificate Signature
+				</section>
+
+				<section data-markdown>
+### Issuer и Subject
+
+Описание владельца сертификата и доверенной третьей стороны (CA, Certificate Authority)
+
+Отличительное имя, Distinguished Name (DN)
+* строка с полями (RFC 1779)
+  - CN - CommonName
+  - L - LocalityName
+  - ST - StateOrProvinceName
+  - O - OrganizationName
+  - OU - OrganizationalUnitName
+  - C - CountryName
+				</section>
+
+				<section data-markdown>
+### CommonName
+
+Для людей - ФИО, для серверов - FQDN
+
+Отдельный вид - wildcard
+```
+CN = *.google.com
+O = Google LLC
+L = Mountain View
+S = California
+C = US
+```
+ 
+Common Name, Distinguished Name - распространенные понятия, встречаются в службах каталогов
+				</section>
+
+				<section data-markdown>
+### Цепочка сертификатов
+
+![](images/tls-certchain.png)
+
+Открытому ключу корневого сертификата надо доверять, проверив его
+				</section>
+
+				<section data-markdown>
+### Корневые сертификаты
+
+Предустановлены в ОС, можно добавить свой
+```
+sudo cp myRoot.cer /usr/local/share/ca-certificates
+sudo update-ca-certificates
+```
+
+Браузеры часто поддерживают свой список
+* [AddRootToFirefox](https://wiki.mozilla.org/CA/AddRootToFirefox),
+  вручную: настройки, приватность и защита, сертификаты, просмотр сертификатов
+* [How to...](https://thomas-leister.de/en/how-to-import-ca-root-certificate/)
+
+				</section>
+
+				<section data-markdown>
+### Демонстрация
+
+```
+# Создание «самоподписанного» сертификата (опция -x509)
+openssl req -x509 -new -keyout volkanin.key -out volkanin.crt -nodes -subj "/CN=volkanin.ru"
+
+# Посмотреть структуру
+openssl x509 -in volkanin.crt -noout -text | less
+
+# Можно протестировать, зайдя браузером на https://localhost/
+sudo openssl s_server -key volkanin.key -cert volkanin.crt -accept 443 -www
+
+# Импортируйте volkanin.crt в доверенные в Firefox
+
+# 1. запрос на сертификат, CSR, Certificate signing request (нет -x509)
+openssl req -new -keyout urfu.key -out urfu.csr -nodes -subj "/CN=urfu.ru"
+
+# 2. подписать запрос ключом «корневого сервера»
+openssl x509 -req -in urfu.csr -CA volkanin.crt -CAkey volkanin.key -out urfu.crt
+
+# Можно протестировать, зайдя браузером на «https://urfu.ru/»
+echo 127.0.0.1 urfu.ru | sudo tee -a /etc/hosts
+sudo openssl s_server -key urfu.key -cert urfu.crt -accept 443 -www
+firefox https://urfu.ru
+```
+
+Справочно - [форматы контейнеров](https://qastack.ru/server/9708/what-is-a-pem-file-and-how-does-it-differ-from-other-openssl-generated-key-file)
+				</section>
+
+				<section data-markdown>
+### Ключевое в TLS
+
+* безопасный канал данных
+* подлинность сервера (и клиента)
+  - использование сертификатов
+* целостность информации
+				</section>
+
+				<section data-markdown>
+## Особенности TCP
+				</section>
+
+				<section data-markdown>
+### Вспомним
+
+Transmission Control Protocol (TCP) -  протокол управления передачей
+* передает поток байт от одного процесса другому
+* сообщение TCP называется сегментом
+* особенность TCP: гарантия доставки и порядка следования данных
+				</section>
+
+				<section data-markdown>
+### Гарантия доставки
+
+Возможные проблемы при доставке:
+* потеря сегментов
+* изменение порядка доставки сегментов
+* повторная доставка сегментов
+
+Механизмы реализации:
+* нумерация сообщений
+* подтверждение получения сообщения
+* повторная отправка при отсутствии подтверждения
+				</section>
+
+				<section data-markdown>
+### Формат TCP
+
+```
+0                   1                   2                   3
+0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|          Source Port          |       Destination Port        |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                        Sequence Number                        |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                    Acknowledgment Number                      |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|  Data |           |U|A|P|R|S|F|                               |
+| Offset| Reserved  |R|C|S|S|Y|I|            Window             |
+|       |           |G|K|H|T|N|N|                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|           Checksum            |         Urgent Pointer        |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                    Options                    |    Padding    |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                             data                              |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+* [TCP connection walkthrough](https://www.youtube.com/watch?v=F27PLin3TV0) от Ben Eater
+* [Протокол TCP](https://www.youtube.com/watch?v=CKUOb4htnB4) от Андрея Созыкина
+				</section>
+
+				<section data-markdown>
+### TCP и география
+
+Установим tcp-соединение с google.com, надо ли ожидать подтверждения каждого пакета?
+
+![World map](images/world_map_low.svg)
+				</section>
+
+				<section data-markdown>
+### RTT и скорость
+
+Время туда/обратно RTT, Round Trip Time
+$$ = \frac{\text{расстояние}}{скорость}
+	\approx \frac{40,000 \text{км}}{300,000 \text{км/сек}}
+	\approx 0,15 \text{сек}
+$$
+  
+Максимальная скорость при ожидании подтверждения каждого пакета
+$$
+= \frac{MTU}{RTT}
+= \frac{1500 \text{байт}}{0,15 \text{сек}}
+= 10,000 \frac{байт}{сек}
+$$
+
+Ожидание подтверждения = снижение скорости
+				</section>
+
+				<section data-markdown>
+### Варианты подтверждений
+
+* Остановка и ожидание – передача данных после получения подтверждения каждого сообщения
+* Скользящее окно – передача нескольких сообщений без ожидания подтверждения
+  - размер окна – сколько данных можно передать без получения подтверждения
+* Кумулятивное подтверждение – подтверждение приема указанных данных и всех предыдущих
+				</section>
+
+				<section data-markdown>
+### клиент-серверный обмен
+
+Если не ждать подтверждений...
+
+```
+	Клиент									Сервер
+eth0 - 1Гбит/с							eth0 - 10Гбит/с
+				Промежуточный коммутатор
+				link speed = 10 Мбит/с
+```
+
+На скорости 1 Гбит/с при RTT = 0,15 с
+
+Ёмкость канала (bandwidth) = 150 Мбит ≈ 19 Мбайт
+
+Почти все эти мегабайты умрут в буфере маршрутизатора
+				</section>
+
+				<section data-markdown>
+### Окна перегрузки и управления потоком
+
+Окно управления потоком
+* Задается получателем (поле заголовка TCP)
+* Размер определяется получателем
+
+Окно перегрузки
+* Задается отправителем
+* Размер определяется загрузкой сети
+
+Размер скользящего окна - меньшее из окон перегрузки или управления потоком 
+				</section>
+
+				<section data-markdown>
+### Управление окном перегрузки
+
+Неизвестно, какие сетевые соединения встретятся по пути к получателю
+* Слишком маленький размер - низкая скорость (ждем подтверждений)
+* Слишком большой размер - низкая скорость (перегрузка сети)
+
+Алгоритм Вана Джекобсона (Van Jacobson)
+* TCP начинает работу с медленного старта, затем переходит на AIMD
+
+Для высоких скоростей есть другие алгоритмы
+				</section>
+
+				<section data-markdown>
+### Другая сторона
+
+Некоторые приложения читают и пишут данные маленькими порциями
+* эмуляторы терминала telnet или ssh
+  - отложенные подтверждения (500 мс)
+* протоколы почты, управления
+				</section>
+
+				<section data-markdown>
+### Nagle’s algorithm
+
+* Получателю отправляется только первая порция маленьких данных
+* Остальные данные буферизируются, пока не придет подтверждение
+* Данные из буфера отправляются в одном сегменте
+* Продолжается накопление данные в буфере, пока не придет новое подтверждение
+				</section>
+
+				<section data-markdown>
+### Влияние на прикладные протоколы
+
+* чтобы избежать медленного старта - мультиплексирование,
+  несколько сеансов внутри одного соединения
+* Nagle можно отключить (опция TCP_NODELAY)
+				</section>
+
+				<section data-markdown>
+# Вопросы ?
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/math/math.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
