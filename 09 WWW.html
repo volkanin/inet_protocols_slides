@@ -1,0 +1,908 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+		<style type="text/css">.reveal blockquote { font-size: 50%; }</style>
+		<style type="text/css">.reveal table { font-size: 70%; }</style>
+		<style type="text/css">.reveal p img { border: 0px; }</style>
+		<style type="text/css">.reveal p.small { font-size: 80%; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# World Wide Web
+
+Протоколы Интернет, лекция 8
+				</section>
+
+				<section data-markdown>
+### План
+
+> Не вижу в этом большого смысла, - сказал Кролик.
+> Нет, - сказал Пух скромно, - его тут нет. Но он собирался тут быть, когда я начал говорить. Очевидно, с ним что-то случилось по дороге.
+
+* Компоненты WWW
+* История и терминология
+* Общая схема работы HTTP, формат пакета
+* Архитектура веб-сервера, обработка запроса
+				</section>
+
+				<section data-markdown>
+### World Wide Web
+
+Распределенная система доступа к связанным документам на разных хостах
+
+Семантические части WWW
+* URI / URL
+* HTTP
+* HTML
+
+Программные части WWW
+* Клиенты
+* Серверы
+* Прокси
+				</section>
+
+				<section data-markdown>
+## Идентификаторы ресурса
+				</section>
+
+				<section data-markdown>
+### Идентификаторы ресурса
+
+Концепция URI (Uniform Resource Identifier)
+* URL  (Uniform Resource Locator) - локатор (определитель местонахождения) ресурса
+* URN (Uniform Resource Name) - название (имя) ресурса
+
+RFC 3986 - Uniform Resource Identifier (URI): Generic Syntax
+
+Идентификатор не гарантирует наличие ресурса
+				</section>
+
+				<section data-markdown>
+### Uniform Resource Identifier
+
+Общий вид 
+```
+Схема : адрес
+```
+
+Например:
+```
+file://&lt;host&gt;/&lt;path&gt;
+mailto:volkanin@mail.ru?subject=Hello&body=Text
+telnet://&lt;user&gt;:&lt;password&gt;@&lt;host&gt;:&lt;port&gt;/
+
+ed2k://|file|[Имя файла]|[Размер файла]|[ ed2k хеш файла ]|/
+magnet:?xl=Размер_в_байтах&dn=Имя_файла&xt=urn:tree:tiger:TTH-хеш_файла
+```
+				</section>
+
+				<section data-markdown>
+### Схема URL для HTTP
+
+```
+<схема>:
+//
+[<логин>:<пароль>@]
+<хост>[:<порт>]
+/[<путь>]
+[?<параметры>]
+[#<якорь>]
+```
+
+Например:
+* http://2130706433/
+* http://www.e1.ru@evilhacker.ru/
+* https://habr.com/ru/search/?q="история+url"#h
+				</section>
+
+				<section data-markdown>
+### Формальное описание
+
+```
+URI           = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
+
+hier-part     = "//" authority path-abempty
+			  / path-absolute
+			  / path-rootless
+			  / path-empty
+
+URI-reference = URI / relative-ref
+
+absolute-URI  = scheme ":" hier-part [ "?" query ]
+
+relative-ref  = relative-part [ "?" query ] [ "#" fragment ]
+
+relative-part = "//" authority path-abempty
+			  / path-absolute
+			  / path-noscheme
+			  / path-empty
+
+scheme        = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+
+authority     = [ userinfo "@" ] host [ ":" port ]
+userinfo      = *( unreserved / pct-encoded / sub-delims / ":" )
+host          = IP-literal / IPv4address / reg-name
+port          = *DIGIT
+
+IP-literal    = "[" ( IPv6address / IPvFuture  ) "]"
+
+IPvFuture     = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
+
+IPv6address   =                            6( h16 ":" ) ls32
+			  /                       "::" 5( h16 ":" ) ls32
+			  / [               h16 ] "::" 4( h16 ":" ) ls32
+			  / [ *1( h16 ":" ) h16 ] "::" 3( h16 ":" ) ls32
+			  / [ *2( h16 ":" ) h16 ] "::" 2( h16 ":" ) ls32
+			  / [ *3( h16 ":" ) h16 ] "::"    h16 ":"   ls32
+			  / [ *4( h16 ":" ) h16 ] "::"              ls32
+			  / [ *5( h16 ":" ) h16 ] "::"              h16
+			  / [ *6( h16 ":" ) h16 ] "::"
+
+h16           = 1*4HEXDIG
+ls32          = ( h16 ":" h16 ) / IPv4address
+IPv4address   = dec-octet "." dec-octet "." dec-octet "." dec-octet
+
+dec-octet     = DIGIT                 ; 0-9
+			  / %x31-39 DIGIT         ; 10-99
+			  / "1" 2DIGIT            ; 100-199
+			  / "2" %x30-34 DIGIT     ; 200-249
+			  / "25" %x30-35          ; 250-255
+
+reg-name      = *( unreserved / pct-encoded / sub-delims )
+
+path          = path-abempty    ; begins with "/" or is empty
+			  / path-absolute   ; begins with "/" but not "//"
+			  / path-noscheme   ; begins with a non-colon segment
+			  / path-rootless   ; begins with a segment
+			  / path-empty      ; zero characters
+
+path-abempty  = *( "/" segment )
+path-absolute = "/" [ segment-nz *( "/" segment ) ]
+path-noscheme = segment-nz-nc *( "/" segment )
+path-rootless = segment-nz *( "/" segment )
+path-empty    = 0<pchar>
+
+segment       = *pchar
+segment-nz    = 1*pchar
+segment-nz-nc = 1*( unreserved / pct-encoded / sub-delims / "@" )
+			  ; non-zero-length segment without any colon ":"
+
+pchar         = unreserved / pct-encoded / sub-delims / ":" / "@"
+
+query         = *( pchar / "/" / "?" )
+
+fragment      = *( pchar / "/" / "?" )
+
+pct-encoded   = "%" HEXDIG HEXDIG
+
+unreserved    = ALPHA / DIGIT / "-" / "." / "_" / "~"
+reserved      = gen-delims / sub-delims
+gen-delims    = ":" / "/" / "?" / "#" / "[" / "]" / "@"
+sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
+			  / "*" / "+" / "," / ";" / "="
+```
+				</section>
+
+				<section data-markdown>
+### Uniform Resource Name
+
+Неизменное имя ресурса без указания его местонахождения и способа обращения
+* RFC 8141 -  Uniform Resource Names (URNs)
+
+Зарегистрированные пространства имён:
+[iana.org/assignments/urn-namespaces](https://www.iana.org/assignments/urn-namespaces/)
+
+Примеры
+```
+urn:isbn:5170224575
+urn:ietf:rfc:3406
+```
+
+Примеры из жизни - DOI (Digital Object Identifier), ISBN
+				</section>
+
+				<section data-markdown>
+## HTML
+
+Hypertext Markup Language
+				</section>
+
+				<section data-markdown>
+### HyperText Markup Language
+
+Гипертекст - форма письма, которое ветвится или осуществляется по запросу
+
+Язык разметки - набор символов или последовательностей, вставляемых в текст для передачи информации о его выводе или строении
+				</section>
+
+				<section data-markdown>
+### Гипертекст
+
+* 1945, Ванневар Буш - концепция Memex
+  - «Tzar of Science», декан MIT, научный советник президента Рузвельта, идеолог ARPA
+* 1963, Даглас Энгельбарт - «Концептуальная схема усиления человеческого интеллекта»
+* 1965, Тед Нельсон - термин «гипертекст», идея единой литературной среды
+
+www.computer-museum.ru/histsoft/hypertxt.htm
+				</section>
+
+				<section data-markdown>
+### Языки разметки
+
+Логические и визуальные
+
+Командные и теговые
+
+Нужна программа-интерпретатор
+
+Примеры
+* ASCII Art = текст с переводами строк + принтер
+* $ \LaTeX $, PostScript
+* Lightweight Markup Language - BBCode, Markdown, вики
+				</section>
+
+				<section data-markdown>
+## Протокол HTTP
+
+Hypertext Transfer Protocol
+				</section>
+
+				<section data-markdown>
+### Зачем новый протокол?
+
+![](images/xkcd-927.png)
+
+xkcd.ru/927
+				</section>
+
+				<section data-markdown>
+### Что уже было?
+
+* WAIS (Wide Area Information Server) - поисковая надстройка над библиотечным протоколом Z39.50 
+* Archie - поисковая система по FTP
+* GOPHER - RFC 1436 (70/tcp), весна 1991, университет Миннесоты
+  - lynx изначально был сделан для gopher://
+
+Их разработчики в какой-то момент пытались брать плату за лицензию
+				</section>
+
+				<section data-markdown>
+### Тим Бернерс-Ли и CERN
+
+Сэр Тимоти Джон Бернерс-Ли
+
+В 1989 году, работая в CERN над внутренней системой обмена документов, предложил использовать гипертекст
+
+В рамках проекта написал первый веб-сервер «httpd» и гипертекстовый браузер для компьютера NeXT - «Nexus»
+
+Первый веб-сайт http://info.cern.ch стал доступен в Интернете 6 августа 1991 г.
+
+HTTP/0.9 опубликован в январе 1992 г.
+				</section>
+
+				<section data-markdown>
+### Молодой протокол
+
+* RFC 1945 - HTTP 1.0
+* RFC 2616 - HTTP 1.1
+* всего через 15 лет обновлён
+  - RFC 7230: Message Syntax and Routing
+  - RFC 7231: Semantics and Content
+  - RFC 7232: Conditional Requests
+  - RFC 7233: Range Request
+  - RFC 7234: Caching
+  - RFC 7235: Authentication
+  - RFC 7236: Authentication Scheme Registrations
+				</section>
+
+				<section data-markdown>
+### Динамично развивающийся
+
+* ...
+  - RFC 7237: Method Registrations
+  - RFC 7238: the 308 status code
+  - RFC 7239: Forwarded HTTP extension
+* RFC 7540 - HTTP 2.0 (proposed standard)
+
+Всё ещё не является стандартом :(
+				</section>
+
+				<section data-markdown>
+## Описание концепций на примере HTTP/1.x
+				</section>
+
+				<section data-markdown>
+### Ключевые особенности
+
+Нет устанавливаемого сеанса, работа по схеме «запрос-ответ»
+* потом оказалось что надо, добавили Cookie
+
+Транспорт - обычно TCP
+
+Каждое HTTP-сообщение состоит из трёх частей
+* Стартовая строка (Starting line) - тип
+* Заголовки (Headers) - метаданные, параметры передачи и пр. 
+* Тело сообщения (Message Body) - непосредственно данные
+				</section>
+
+				<section data-markdown>
+### Влияние других протоколов
+
+* SMTP - концепция классов ответов
+* MIME повлиял на формат сообщения
+* Gopher повлиял на stateless и понятие «тип документа»
+* концепция распределенной файловой системы - Prospero
+				</section>
+
+				<section data-markdown>
+### Терминология
+
+Ресурс - объект данных / сервис, идентифицируемый URI
+
+Представление -  информация, отражающая прошлое, текущее или желаемое состояние ресурса
+* Состоит из метаданных и самих данных
+* Сервер может сгенерировать несколько представлений
+* Возможна транспортная перекодировка / сжатие
+				</section>
+
+				<section data-markdown>
+### Терминология
+
+Сообщение - HTTP-запрос или HTTP-ответ.
+* Каждое взаимодействие с веб-сервером - это 2 сообщения
+
+Заголовок - «управляющая часть» сообщения
+
+Агент пользователя (User Agent)
+
+Исходный сервер (Origin)
+
+Промежуточное звено (Intermediary)
+				</section>
+
+				<section data-markdown>
+### Сообщение HTTP
+
+```
+HTTP-message  = start-line CRLF
+                *( header-field CRLF )
+                CRLF
+				[ message-body ]
+```
+
+Пример минимального запроса:
+
+```
+GET / HTTP/1.1
+Host: e1.ru
+```
+
+Пример ответа:
+```
+HTTP/1.1 200 OK
+Content-Length: 5
+
+Hello
+```
+				</section>
+
+				<section data-markdown>
+### Методы запроса
+
+```
+request-line = method SP request-target SP HTTP-version CRLF
+```
+
+| метод   |                                                                                     |
+|---------|-------------------------------------------------------------------------------------|
+| GET     | Transfer a current representation of the target resource                            |
+| HEAD    | Same as GET, but only transfer the status line and header section                   |
+| POST    | Perform resource-specific processing on the request payload                         |
+| PUT     | Replace all current representations of the target resource with the request payload |
+| DELETE  | Remove all current representations of the target resource                           |
+| CONNECT | Establish a tunnel to the server identified by the target resource                  |
+| OPTIONS | Describe the communication options for the target resource                          |
+| TRACE   | Perform a message loop-back test along the path to the target                       |
+				</section>
+
+				<section data-markdown>
+### Методы запроса
+
+Обязательные (MUST) к реализации - GET и HEAD
+
+Безопасные методы - read-only
+* GET, HEAD, OPTIONS, TRACE
+
+Идемпотентные методы - получение одинаковых данных при повторах
+* безопасные + PUT, DELETE
+* то есть все, кроме CONNECT и POST
+
+Кешируемые методы
+* GET, HEAD и POST
+* Большинство реализаций - только GET и HEAD
+				</section>
+
+				<section data-markdown>
+### Классы ответов HTTP
+
+```
+status-line =  HTTP-version SP status-code SP reason-phrase CRLF
+```
+
+| группа кодов        |                                                                   |
+|---------------------|-------------------------------------------------------------------|
+| 1xx (Informational) | The request was received, continuing process                      |
+| 2xx (Successful)    | The request was successfully received, understood, and accepted   |
+| 3xx (Redirection)   | Further action needs to be taken in order to complete the request |
+| 4xx (Client Error)  | The request contains bad syntax or cannot be fulfilled            |
+| 5xx (Server Error)  | The server failed to fulfill an apparently valid request          |
+
+О конкретных кодах - позднее
+				</section>
+
+				<section data-markdown>
+### Заголовки HTTP
+
+* Общие заголовки (в запросе и в ответе)
+* Заголовки запроса
+* Заголовки ответа
+* Заголовки содержимого (ресурса и представления)
+
+Общий вид:
+```
+field-name:значение
+```
+
+Порядок любой, регистр не важен, дублировать нельзя (а если ?)
+				</section>
+
+				<section data-markdown>
+### Метаданные представления
+
+Content-Type: тип/подтип
+* Content-Type: text/html;charset=utf-8
+* Content-Type: multipart/form-data
+
+Content-Encoding: compress / deflate / gzip 
+
+Content-Language: язык (напр. en-us)
+
+Content-Location: absolute-URI / partial-URI
+* для 201 Created - адрес нового ресурса
+* для GET - адрес конкретного представления
+* для PUT - исходный адрес (backlink)
+* это не замена URI запроса
+				</section>
+
+				<section data-markdown>
+### Payload
+
+Тело сообщения, полезная нагрузка
+
+Сообщения HTTP могут передавать
+* представление ресурса целиком
+* только часть представления
+* только метаданные
+
+для PUT тело - желаемое новое преставление
+
+для POST - данные для передачи на обработку
+
+для GET - зависит от ответа (200 OK / 206 Partial Content)
+				</section>
+
+				<section data-markdown>
+### Заголовки Payload
+
+Content-Length: длина(байт), обязателен для POST
+
+Content-Range - напр. bytes 42-1233/1234
+
+Trailer - заголовки после тела
+
+Transfer-Encoding - напр. gzip, chunked
+
+```
+HTTP/1.1 200 OK 
+Content-Type: text/plain 
+Transfer-Encoding: chunked
+Trailer: Expires
+
+7\r\n 
+Mozilla\r\n 
+9\r\n 
+Developer\r\n 
+0\r\n 
+Expires: Thu, 16 Apr 2020 07:28:00 GMT\r\n
+\r\n
+```
+				</section>
+
+				<section data-markdown>
+### Активное согласование
+
+Proactive, клиент требует контент в нужном виде
+
+Accept: предпочитаемые типы
+```
+Accept: text/*, text/plain; q=0.5, */*
+```
+
+Accept-Charset: предпочитаемые кодировки
+
+Accept-Encoding: предпочитаемое сжатие
+
+Accept-Language: предпочитаемые языки
+```
+Accept-Language: en-us; q=1, ru-ru; q=0.5
+```
+				</section>
+
+				<section data-markdown>
+### Активное согласование
+
+В ответе заголовок Vary - выбранные сервером критерии
+* Vary: accept-encoding, accept-language 
+
+Используется для кеширования
+				</section>
+
+				<section data-markdown>
+### Переговорное согласование
+
+Reactive, сервер предлагает альтернативы
+
+код ответа 300 (Multiple Choices)
+
+Заголовки Location: URI
+
+Желательно сгенерировать список с описаниями
+				</section>
+
+				<section data-markdown>
+### Заголовки запроса
+
+Управление режимом обработки запроса
+
+| Заголовок     |                                        |
+|---------------|----------------------------------------|
+| Cache-Control | управление кешированием                |
+| Expect        | ожидаемый ответ (100-continue)         |
+| **Host**      | имя узла для определения сайта         |
+| Max-Forwards  | управление пересылками прокси          |
+| Pragma        | управление кешированием                |
+| Range         | запрос на диапазон                     |
+| TE            | лучше назвать Accept-Transfer-Encoding |
+				</section>
+
+				<section data-markdown>
+### Заголовки запроса
+
+Условная обработка (и кеширование)
+* If-Match и If-None-Match
+* If-Modified-Since и If-Unmodified-Since
+* If-Range
+
+Управление согласованием - Accept*
+
+Доступ - Authorization и Proxy-Authorization 
+
+Контекст запроса - From, Referer, User-Agent
+				</section>
+
+				<section data-markdown>
+### Заголовки ответа
+
+* Age
+* Cache-Control
+* Expires
+* Date	- Internet Message Format (RFC5322)
+  - Thu, 16 Apr 2020 08:49:37 GMT
+* Location
+* Retry-After
+* Vary
+* Warning
+				</section>
+
+				<section data-markdown>
+### Заголовки ответа
+
+Валидация (и кеширование)
+* Etag
+* Last-Modified
+
+Аутентификация
+* WWW-Authenticate и Proxy-Authenticate
+
+Контекст ответа
+* Accept-Ranges
+* Allow (список методов)
+* Server
+				</section>
+
+				<section data-markdown>
+### Расширяемость HTTP
+
+Расширения сервера могут добавлять новые методы запроса, их можно регистрировать в IANA
+
+Метод OPTIONS - выяснить наличие расширений
+
+WebDAV - Web Distributed Authoring and Versioning
+* методы LOCK и UNLOCK
+
+То же с ответами
+* 451 Unavailable For Legal Reasons
+				</section>
+
+				<section data-markdown>
+### Программное обеспечение
+
+* Клиенты - потребители услуг сервера (отправка запроса), например
+  - Пауки
+  - Агенты
+  - Браузеры
+* Серверы - хранение и обработки информации (обработка запросов)
+* Посредники (intermediaries)
+				</section>
+
+				<section data-markdown>
+### Поисковые системы
+
+Тоже клиенты, web crawlers, spiders
+
+Robots.txt - текстовый файл с параметрами индексирования сайта роботами поисковых систем
+* www.robotstxt.org
+* [yandex.ru/support/webmaster/controlling-robot](https://yandex.ru/support/webmaster/controlling-robot/)
+
+```
+User-Agent: *
+Disallow: /forum
+Disallow: /cgi-bin
+Host: www.glavnoye-zerkalo.ru
+Crawl-delay: 2
+```				</section>
+
+				<section data-markdown>
+### HTTP как транспорт
+
+HTTP - транспорт для веб-сервисов
+* REST, SOAP, XML-RPC, WebDAV
+
+Программы часто используют HTTP «вместо TCP», потому что есть готовые библиотеки
+
+Примеры?
+				</section>
+
+				<section data-markdown><script type="text/template">
+### Браузеры
+
+Internet Explorer !
+
+Chrome / Safari / Opera и др. - ядро WebKit / Blink
+
+Firefox - ядро Gecko
+
+А почему в _User-Agent_ <!-- .element: onclick="alert(window.navigator.userAgent)" -->
+всегда "Mozilla", "Netscape" и "Gecko" ???
+Так получилось...	
+* [webaim.org/blog/user-agent-string-history](https://webaim.org/blog/user-agent-string-history/)
+* Перевод - [habr.com/post/84222](https://habr.com/post/84222/)
+				</script></section>
+
+				<section data-markdown><script type="text/template">
+### History of the user-agent string
+
+А потом создали Google Chrome и Chrome использовал WebKit, и был он как Safari, и хотел страниц, созданных для Safari, и поэтому сделал вид, что он и есть Safari.<!-- .element: class="small" -->
+
+И таким образом Chrome использовал WebKit, и притворился, что Safari, и WebKit притворился, что он KHTML, и KHTML притворился Gecko, а все браузеры притворялись Mozilla, и Chrome называл себя Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US) AppleWebKit/525.13 (KHTML, like Gecko) Chrome/0.2.149.27 Safari/525.13 и user-agent стал полным беспорядком, рядом не лежавшим с удобством, и каждый притворялся другим, и путаница изобиловала. <!-- .element: class="small" -->
+
+И хаос воцарился на земле.<!-- .element: class="small" -->
+				</script></section>
+
+				<section data-markdown>
+### Веб-серверы
+
+* Apache
+* Nginx (больше как прокси)
+* Cloudlare (прокси/CDN)
+* Microsoft IIS (Internet Information Services)
+* и другие
+
+Статистика
+* [w3techs.com](https://w3techs.com/technologies/overview/web_server)
+* [Netcraft](https://news.netcraft.com/archives/category/web-server-survey/)
+
+
+				</section>
+
+				<section data-markdown>
+### Понятие «сайт»
+
+Появилось из-за быстрого роста количества сайтов и появления виртуального хостинга
+
+Сайт - набор настроек на стороне сервера, определяющих параметры обработки HTTP-запроса
+* Виртуальная ФС
+* Разрешения доступа
+* Генерация ответа и запуск сценариев
+
+Сайт определяется комбинацией IP + порт + Host
+				</section>
+
+				<section data-markdown>
+### Обработка запроса сервером 
+
+Справочно - в [Apache](http://httpd.apache.org/docs/current/developer/request.html),
+[Nginx](http://www.nginxguts.com/phases/),
+[IIS](https://docs.microsoft.com/en-us/previous-versions/iis/6.0-sdk/ms524901(v%3Dvs.90))
+
+| Сервер выполняет                               | возможные ошибки   |
+|------------------------------------------------|--------------------|
+| Синтаксический анализ                          | 400 Bad request    |
+| Выбор сайта                                    | 404 Not Found      |
+| URI в имя файла + определение операции         | 401 Authentication |
+| Проверка разрешений                            | 403 Forbidden      |
+| * GET /temp → 301 Moved → GET /temp/ = листинг |                    |
+| * GET / → /index.php (файл «по  умолчанию»)    |                    |
+| Формирование ответа                            |                    |
+| * Статический файл                             | 200 OK (не ошибка) |
+| * Динамическая генерация сервером              |                    |
+| * Динамическая генерация разработчиком         |                    |
+				</section>
+
+				<section data-markdown>
+### Архитектура сервера
+
+Однопоточный, запросы в очередь
+
+На каждый запрос - отдельный поток, это очень медленно
+
+Пул потоков, в которые из общей очереди распределяются запросы
+				</section>
+
+				<section data-markdown>
+### Динамическая генерация ответов
+
+«Сам по себе» сервер может сгенерировать список файлов в каталоге (если разрешено)
+
+Серверные (пользовательские) сценарии
+* Отдельный процесс
+* Непрерывный процесс, общающийся с сервером
+* Модуль, выполняющийся в процессе сервера
+
+Обычно нет заголовка Last-Modified
+				</section>
+
+				<section data-markdown>
+### CGI - Common Gateway Interface
+
+RFC 3875,
+стандарт интерфейса, используемого для связи внешней программы с веб-сервером
+
+В Apache включается например так:
+```
+AddHandler cgi-script .pl
+Options +ExecCGI
+```
+
+Общение с внешним миром:
+* Тело запроса читаем из STDIN
+* STDOUT - готовый ответ (заголовки и тело)
+```
+#!/usr/bin/perl
+print "Content-type: text/html\n\n";
+print "Hello, world!"; 
+```
+				</section>
+
+				<section data-markdown>
+### Переменные CGI
+
+```
+AUTH_TYPE
+CONTENT_LENGTH
+CONTENT_TYPE
+GATEWAY_INTERFACE
+HTTP_*
+PATH_INFO
+PATH_TRANSLATED
+QUERY_STRING
+REMOTE_ADDR
+REMOTE_HOST
+REMOTE_IDENT
+REMOTE_USER
+REQUEST_METHOD
+SCRIPT_NAME
+SERVER_NAME
+SERVER_PORT
+SERVER_PROTOCOL
+SERVER_SOFTWARE
+```
+
+Эти переменные прижились не только в CGI
+				</section>
+
+				<section data-markdown>
+### FastCGI
+
+Сценарий CGI - в отдельном процессе при каждом запросе, это медленно
+
+Сценарий FastCGI запускается в отдельном процессе один раз
+
+FastCGI использует Unix Domain Sockets или TCP для связи с сервером
+
+Многие CMS и системы документооборота сами генерируют ответы
+
+Веб-сервер выступает как reverse proxy
+				</section>
+
+				<section data-markdown>
+### Модули сервера
+
+SSI - Server Side Includes
+```
+&lt;!-- #echo var="LAST_MODIFIED" --&gt;
+&lt;!-- #include virtual="footer.html" --&gt;
+```
+
+Сейчас модулями оформляется подключение сценариев 
+```
+LoadModule php5_module libexec/libphp5.so
+<IfModule mod_php5.c>
+	DirectoryIndex index.php index.html
+	AddType application/x-httpd-php .php
+</IfModule>
+```
+
+Для надежности - отдельный процесс в пуле
+				</section>
+
+				<section data-markdown>
+## Посредники
+
+```
+UA ←-→ A ←-→ B ←-→ C ←-→ Origin
+```
+
+Передача - upstream или downstream
+
+Proxy - агент, выбранный клиентом.
+Вариант -Interception (transparent) proxy
+
+Gateway (reverse proxy) - ближе к исходному серверу,
+напр. nginx
+
+Варианты работы
+* Tunnel - пересылка без изменения
+* Cache - дополнительная функция посредника
+				</section>
+
+				<section data-markdown>
+# Вопросы ?
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/math/math.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
