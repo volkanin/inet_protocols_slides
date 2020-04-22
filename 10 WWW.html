@@ -1,0 +1,624 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+		<style type="text/css">.reveal blockquote { font-size: 50%; }</style>
+		<style type="text/css">.reveal table { font-size: 70%; }</style>
+		<style type="text/css">.reveal p img { border: 0px; }</style>
+		<style type="text/css">.reveal p.small { font-size: 80%; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# Снижение нагрузки в HTTP
+
+Протоколы Интернет, лекция 10
+				</section>
+
+				<section data-markdown>
+### План
+
+> Продвигаясь по инстанциям снизу вверх, информация искажается (из сборника "Законы Мерфи")
+
+* Проблемы ранних версий HTTP
+* Кеширование
+* CDN
+* Запросы на диапазоны
+				</section>
+
+				<section data-markdown>
+### Данные для анализа (1)
+
+![Total size](images/http-stats-size.png)
+				</section>
+
+				<section data-markdown>
+### Данные для анализа (2)
+
+![Total requests per page](images/http-stats-requests.png)
+				</section>
+
+				<section data-markdown>
+### Данные для анализа (3)
+
+![TCP connections per page](images/http-stats-connections.png)
+				</section>
+
+				<section data-markdown>
+### Соединения в HTTP
+
+HTTP/1.0 - 1 соединение на запрос/ответ
+* Попытка управлять - Connection: keep-alive / close
+
+HTTP/1.1 - постоянные (persistent) соединения
+* Не все клиенты умеют конвейер
+
+RFC 2615, раздел 8.1.4 Practical Considerations
+* A single-user client SHOULD NOT maintain more than 2 connections with any server or proxy.
+* http://cs418931.vk.me/ - шардинг
+				</section>
+
+				<section data-markdown>
+### Соединения в HTTP
+
+Сайт определяется комбинацией IP + порт + Host
+
+RFC 2615
+* A single-user client SHOULD NOT maintain more than 2 connections with any server or proxy.
+
+RFC 7230
+* this was found to be impractical for many applications... instead... be conservative when opening multiple connections
+				</section>
+
+				<section data-markdown>
+#### Повышение производительности
+
+Снижение нагрузки на серверы
+* Условные запросы
+  - RFC 7232 - HTTP/1.1: Conditional Requests
+* Кеширование
+  - RFC 7234 - HTTP/1.1: Caching
+* Запросы на диапазоны
+  - RFC 7233 - HTTP/1.1: Range Requests
+* Механизм Expect/Continue
+
+
+				</section>
+
+				<section data-markdown>
+#### Повышение производительности
+
+Ускорение получения ответа клиентом
+* Потоковые запросы
+* Транспортное кодирование
+  - сжатие, chunked + Trailers
+* Content Delivery Network
+* в HTTP/2
+  - предварительная загрузка
+  - одно tcp-соединение + мультиплексирование
+				</section>
+
+				<section data-markdown>
+## Кеширование в HTTP
+
+[Google: Performance](https://developers.google.com/web/fundamentals/performance/optimizing-content-efficiency/http-caching?hl=ru)
+
+[HTTPArchive: кеширование, статистика](https://almanac.httparchive.org/en/2019/caching)
+				</section>
+
+				<section data-markdown>
+### Валидаторы
+
+Меняются при изменениях  в ресурсе 
+
+Слабые и сильные валидаторы
+* Last-Modified: Thu, 24 Apr 2020 11:00:26 GMT
+* ETag (Entity tag)
+  - ETag: "строка ASCII"
+  - ETag: W/"строка ASCII"
+
+Какой это валидатор для файла?
+* хеш коммита в git
+* размер + дата изменения
+				</section>
+
+				<section data-markdown>
+### Etag и согласование
+
+```
+GET /index HTTP/1.1
+Host: www.example.com
+Accept-Encoding: gzip
+```
+
+Вариант ответа, если сжатие отключено
+```
+HTTP/1.1 200 OK
+ETag: "123-a"
+Content-Length: 70
+Vary: Accept-Encoding
+Content-Type: text/plain
+```
+
+Вариант, если контент сжат сервером
+```
+HTTP/1.1 200 OK
+ETag: "123-b"
+Content-Length: 43
+Vary: Accept-Encoding
+Content-Type: text/plain
+Content-Encoding: gzip
+```
+
+Note:
+Content-Encoding - это не Transfer-Encoding
+				</section>
+
+				<section data-markdown>
+### Сравнение валидаторов
+
+2 функции сравнения
+
+| ETag 1 | ETag 2 | Strong Comparison | Weak Comparison |
+|--------|--------|-------------------|-----------------|
+| W/"1"  | W/"1"  | no match          | match           |
+| W/"1"  | W/"2"  | no match          | no match        |
+| W/"1"  | "1"    | no match          | match           |
+| "1"    | "1"    | match             | match           |
+				</section>
+
+				<section data-markdown>
+### Условные запросы
+
+Precondition Header Fields
+
+If-Match: "*" / entity-tag
+* обычно в POST, PUT, DELETE
+* ответы - 2xx, 412 Precondition Failed
+* строгое сравнение
+* можно список - If-Match: "123-a", "123-b"
+
+If-None-Match: "*" / entity-tag
+* обычно в GET, а если в PUT ?
+* 2xx, 304 Not Modified, 412 Precondition Failed
+				</section>
+
+				<section data-markdown>
+### Условные запросы
+
+If-Modified-Since: HTTP-date
+* только GET, HEAD
+* ответы 2xx, 304 Not Modified
+
+If-Unmodified-Since: HTTP-date
+* обычно в POST, PUT, DELETE
+* ответы - 2xx, 412 Precondition Failed
+
+If-Range: entity-tag / HTTP-date
+* обычно GET, для частично полученных ранее ресурсов
+				</section>
+
+				<section data-markdown>
+### Кеширование
+
+Ключ записи в кеше
+* Основной - URI + метод (обычно GET)
+* Вторичный - из заголовка Vary
+
+Кешируем код ответа и представление ресурса,
+допускается кешировать не только 200 OK
+* постоянные перенаправления (301)
+* отсутствие ресурса (404)
+* неполный ответ (206)
+
+При извлечении - проверка свежести (freshness), подтверждение актуальности (validation)
+				</section>
+
+				<section data-markdown>
+### Условия кеширования
+
+Основные условия (без деталей)
+* знакомые метод запроса и код ответа
+* в запросе/ответе нет директив "no-store", "private" (для публичного кеша)
+* в запросе нет заголовка Authorization (в ответе сервера можно разрешить)
+* ответ содержит заголовок Expires или директивы max-age, public (Cache Control)
+
+В противном случае "A cache MUST NOT store a response to any request"
+				</section>
+
+				<section data-markdown>
+### Свежесть (Fresh/stale)
+
+Определяется возрастом (Age) ответа с момента генерации (заголовок Date)
+
+Механизм определения свежести кешем
+* Исходный сервер сообщает срок хранения
+  - Cache-Control: s-maxage=секунд
+  - Cache-Control: maxage=секунд
+  - Expires: дата+время
+  - эвристическое определение
+
+Клиенты в запросе используют Cache-Control + min-fresh / max-age
+				</section>
+
+				<section data-markdown>
+### Свежесть (эвристика)
+
+Если явных директив нет
+* Можно ориентироваться на Last-Modified и Date
+* Warning: 113 Heuristic Expiration
+
+В RFC 2616 запрещалось для динамически сгенерированных ответов 
+* в URI есть параметры - yandex.ru/search?text=123
+* обычно нет Last-Modified
+				</section>
+
+				<section data-markdown>
+### Возраст
+
+Предполагаемый возраст ответа при получении из кэша
+
+Заголовок Age: секунд
+* max(0, response_time - исходный_Date)
+* может быть скорректирован на время response_delay
+
+Заголовок Age говорит клиенту, что проверки актуальности ответа не было
+				</section>
+
+				<section data-markdown>
+### Потеря связи
+
+Кеш может отдавать устаревшие (stale) ответы
+* Warning: 110 - "Response is Stale"
+* Warning: 112 - "Disconnected Operation"
+				</section>
+
+				<section data-markdown>
+### Валидация
+
+В кеше есть ответ, но использовать не можем
+* напр., срок годности вышел, ключ Vary не тот
+
+Validation / revalidation request
+* условный запрос к исходному серверу на основе ETag/Last-Modified
+* может использоваться метод HEAD
+
+Заголовок Age говорит клиенту, что проверки актуальности ответа не было
+				</section>
+
+				<section data-markdown>
+### Управление кешем (клиент)
+
+Cache-Control: директива=значение, ...
+
+| директива      | значение                                                                    |
+|----------------|-----------------------------------------------------------------------------|
+| max-age        | возраст должен быть не больше данного значения                              |
+| max-stale      | возможно использование устаревшего ответа, но не старше указанного значения |
+| min-fresh      | ответ должен оставаться актуальным по меньшей мере указанное время          |
+| no-cache       | принудительная загрузка с оригинального веб-сервера                         |
+| no-store       | кешам не разрешено сохранять запрос, ответ                                  |
+| no-transform   | прокси не должен изменять тип данных ресурса                                |
+| only-if-cached | получение ресурса только из кеша                                            |
+				</section>
+
+				<section data-markdown>
+### Управление кешем (сервер)
+
+Тот же  Cache-Control: директива=значение, ...
+
+| директива    | значение                                                           |
+|--------------|--------------------------------------------------------------------|
+| public       | разрешение кэшировать ответ, где угодно                            |
+| private      | ответ только для конкретного пользователя                          |
+|              | напр., так - private="CustomerID"                                  |
+| no-store     | не разрешено кэшировать ответ, запрос                              |
+| no-cache     | кешировать можно :), но валидация обязательна                      |
+|              | напр., чтобы учесть наличие и корректность заголовка Authorization |
+| no-transform | прокси-сервер не должен изменять тип содержания                    |
+				</section>
+
+				<section data-markdown>
+### Управление кешем (сервер)
+
+Тот же  Cache-Control: директива=значение, ...
+
+| директива        | значение                                                           |
+|------------------|--------------------------------------------------------------------|
+| must-revalidate  | проверять актуальность после истечения годности                    |
+|                  | если ответ несвежий и проверить не удалось, то 504 Gateway Timeout |
+| proxy-revalidate | то же, но только для прокси-серверов                               |
+| max-age          | возраст ответа не должен превышать заданного значения              |
+| s-maxage         | макс. возраст ответа в совместно используемых кэшах                |
+				</section>
+
+				<section data-markdown>
+### Срок жизни в кеше
+
+Cache-Control: max-age, no-store
+
+Заголовок Expires: дата
+* иногда применяется дата «в прошлом» для отключения кеша
+
+Pragma: no-cache
+* для совместимости с HTTP/1.0
+				</section>
+
+				<section data-markdown>
+![Resource age distribution by content type](https://almanac.httparchive.org/static/images/2019/caching/ch16_fig8_resource_age.jpg)
+				</section>
+
+				<section data-markdown>
+### Без кэша
+
+![Без кэша](images/http-no-cache.svg)
+				</section>
+
+				<section data-markdown>
+### Last-modified
+
+![Last-modified и if-Modified-Since](images/http-last-modified.svg)
+				</section>
+
+				<section data-markdown>
+### Etag
+
+![Etag и If-None-Match](images/http-etag.svg)
+				</section>
+
+				<section data-markdown>
+### Expires
+
+![Expires](images/http-expires.svg)
+				</section>
+
+				<section data-markdown>
+### Cache-control
+
+![Cache-control: max-age](images/http-max-age.svg)
+				</section>
+
+				<section data-markdown>
+### Принудительное обновление
+
+В браузере - Ctrl+F5 / Ctrl+Shift+R
+
+Что в заголовках запроса?
+				</section>
+
+				<section data-markdown>
+### Примеры настройки
+
+Apache
+```
+&lt;IfModule mod_expires.c>
+	ExpiresActive On
+	ExpiresByType image/jpg "access plus 1 year"
+	ExpiresByType text/css "access plus 1 month"
+	ExpiresDefault "access plus 2 days"
+&lt;/IfModule>
+```
+
+```
+&lt;ifModule mod_headers.c>
+	&lt;FilesMatch "\.(gif|ico)$">
+		Header set Cache-Control "max-age=2592000, public"
+	&lt;/FilesMatch>
+	&lt;FilesMatch "\.(js)$">
+		Header set Cache-Control "max-age=88000, private, must-revalidate"
+	&lt;/FilesMatch>
+	&lt;FilesMatch "\.(php)$">
+		Header set Cache-Control "private, no-store, no-cache, must-revalidate, no-transform, max-age=0"
+	&lt;/FilesMatch>
+&lt;/ifModule>
+```
+				</section>
+
+				<section data-markdown>
+### Примеры настройки
+
+Lighttpd
+```
+expire.url = ( 
+	"" => "access plus 1 hours",
+	"image/" => "access plus 1 days" 
+)
+```
+
+Nginx
+```
+server {
+	#...
+	location ~* \.(gif|ico|jpe?g|png)(\?[0-9]+)?$ {
+	  add_header Cache-Control "max-age=88000,  public";
+	}
+	location ~* \.(css|js)$ {
+	  expires     1d;
+	}
+	#...
+  }
+```
+				</section>
+
+				<section data-markdown>
+## Запросы на диапазоны
+				</section>
+
+				<section data-markdown>
+### Зачем?
+
+Изначально - необходимость извлекать части документов в формате PDF
+
+Докачивание при обрыве связи (сверьте хеш!)
+
+Получение измененной/обновленной части
+
+Аудио/видео с указанного времени
+
+Сервер может указать, что он умеет отдавать часть ресурса
+* Accept-Ranges: bytes
+* Accept-Ranges: none
+				</section>
+
+				<section data-markdown>
+### Использование
+
+Вариант запроса
+```
+GET / HTTP/1.1
+Host: ...
+Range: 21010-
+If-Range: "123-a"
+```
+
+Варианты ответов
+```
+HTTP/1.1 206 Partial Content
+Content-Range: bytes 21010-47021/47022
+Content-Length: 26012
+```
+
+```
+HTTP/1.1 200 OK
+Content-Length: 47022
+```
+
+```
+HTTP/1.1 416 Range Not Satisfiable
+```
+				</section>
+
+				<section data-markdown>
+### Описание диапазона
+
+Range: описание диапазона
+
+| запрос Range  | смысл                                        |
+|---------------|----------------------------------------------|
+| bytes=0-499   | первые 500 байтов                            |
+| bytes=-500    | последние 500 байтов, если размер неизвестен |
+| bytes=9500-   | с байта 9501 до конца файла                  |
+| bytes=0-0,-1  | первый и последний байт                      |
+
+Запрошенные диапазоны могут пересекаться, сервер их упрощает
+
+Могут быть другие единицы измерения, в заголовке ответа Accept-Ranges
+				</section>
+
+				<section data-markdown>
+### Ответ в «сложном» случае
+
+```
+HTTP/1.1 206 Partial Content
+Date: Thu, 23 Apr 2020 11:55:24 GMT
+Last-Modified: Thu, 23 Apr 2020 04:58:08 GMT
+Content-Length: 1741
+Content-Type: multipart/byteranges; boundary=THIS_SEPARATES
+
+--THIS_SEPARATES
+Content-Type: application/pdf
+Content-Range: bytes 500-999/8000
+
+...the first range...
+--THIS_SEPARATES
+Content-Type: application/pdf
+Content-Range: bytes 7000-7999/8000
+
+...the second range…
+--THIS_SEPARATES--
+```
+				</section>
+
+				<section data-markdown>
+## Content Delivery Network
+				</section>
+
+				<section data-markdown>
+### Скорость и RTT
+
+![](images/http-speed-rtt.svg)
+
+На скорость загрузки больше влияет география, чем канал
+				</section>
+
+				<section data-markdown>
+### Сеть доставки
+
+Сеть доставки содержимого, Content Delivery (Distribution) Network - географически распределённая сетевая инфраструктура
+
+Используется совместно с механизмами кеширования
+
+Ключевое различие CDN разных типов - какая часть трафика проходит через CDN
+				</section>
+
+				<section data-markdown>
+### Примеры CDN
+
+* Бесплатные CDN раздачи JS-библиотек (MaxCDN, Google. Yandex)
+* CDN сервисов по клиентской оптимизации (Google Fonts для шрифтов, Cloudimage)
+* CDN для статики и оптимизации ресурсов в CMS (в Битриксе, Wordpress и др.)
+* CDN общего назначения (StackPath, CDNVideo, NGENIX, Мегафон)
+* СDN для ускорения сайтов (Cloudflare, Imperva, Айри)
+
+Последние -  полное проксирование трафика
+				</section>
+
+				<section data-markdown>
+### Схема работы
+
+![](images/http-cdn.png)
+				</section>
+
+				<section data-markdown>
+### Почему ускорение?
+
+Возможности CDN по ускорению сайта
+* Сжатие текстовых ресурсов
+* Установка заголовков клиентского кэширования
+* Оптимизация картинок (WebP, MozJPEG)
+* Оптимизация TLS-соединения
+* Сокращение задержек подключения
+* Оптимизация контента (минификация, структурные изменения)
+				</section>
+
+				<section data-markdown>
+### Другие технологии
+
+Общее слово - HighLoad
+
+Специальная архитектура приложений
+
+Кеширование на нескольких уровнях
+* Memcached и т.п.
+
+http://highload.guide/blog/
+				</section>
+
+				<section data-markdown>
+# Вопросы ?
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/math/math.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
