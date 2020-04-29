@@ -1,0 +1,776 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+		<style type="text/css">.reveal blockquote { font-size: 50%; }</style>
+		<style type="text/css">.reveal table { font-size: 70%; }</style>
+		<style type="text/css">.reveal p img { border: 0px; }</style>
+		<style type="text/css">.reveal p.small { font-size: 80%; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# Разграничение доступа в HTTP
+
+Протоколы Интернет, лекция 11
+				</section>
+
+				<section data-markdown>
+### План
+
+> Секта Свидетелей Драматического Отличия Авторизации От Аутентификации
+> И Их Обоих От Идентификации
+
+* Как различать пользователей
+* Cookie
+* Ограничения доступа в HTTP
+* Интеграция с внешними серверами
+* weel-known URL
+				</section>
+
+				<section data-markdown>
+### AAA
+
+Общее название процессов, связанных с обеспечением защиты данных в информационных системах
+* Identification (идентификация)
+* Authentication (аутентификация)
+  - я знаю (пароль)
+  - я имею (токен)
+  - я есть (биометрия)
+* Authorization (авторизация, проверка полномочий)
+  - субьект + операция + объект -> да/нет
+* Accounting (учёт) + Audit
+				</section>
+
+				<section data-markdown>
+## Cookies
+
+![](images/cookies-starwars.jpg)
+				</section>
+
+				<section data-markdown>
+### Как готовить печеньки?
+
+[wiki/HTTP_cookie](https://ru.wikipedia.org/wiki/HTTP_cookie#История)
+* 1995 г, Netscape Communications
+
+RFC 6265 – HTTP State Management Mechanism
+
+Многие пользователи уверены (2005 г):
+* куки, как вирусы, могут стереть данные
+* куки являются причиной всплывающих окон
+* куки используются для почтового спама
+* куки используются только для рекламы
+				</section>
+
+				<section data-markdown>
+### Обзор
+
+Устанавливает сервер
+```
+S -> UA	Set-Cookie: SID=31d4d96e407aad42
+UA -> S	Cookie: SID=31d4d96e407aad42
+```
+
+Ограничение по URL
+```
+S -> UA	Set-Cookie: SID=31d4d96e407aad42;
+			Path=/admin; Domain=example.com
+UA -> S	Cookie: SID=31d4d96e407aad42
+```
+
+Сложение
+```
+S -> UA	Set-Cookie: SID=31d4d96e407aad42; 
+			Path=/admin; Secure; HttpOnly
+S -> UA	Set-Cookie: lang=en-US; Path=/
+UA -> S	Cookie: SID=31d4d96e407aad42; lang=en-US
+```
+				</section>
+
+				<section data-markdown>
+### Set-Cookie
+
+[Set-Cookie](https://developer.mozilla.org/ru/docs/Web/HTTP/Заголовки/Set-Cookie): имя=значение; атрибуты
+* Expires = Sun, 01 Jan 1970 00:0:00 GMT
+* Max-Age = TTL в секундах
+* Domain = example.com
+  - включает поддомены (www.example.com)
+  - UA примет куки для example.com с сервера www.example.com
+  - игнорируются куки для TLD-доменов
+* Path = путь
+  - если нет, Path = каталог Request URI
+* Secure, HttpOnly
+				</section>
+
+				<section data-markdown>
+### Cookie
+
+Cookie: имя=значение; имя=значение
+* Порядок пар не определён
+* Набор зависит от http/https и Secure
+* Отправляются только не устаревшие куки
+
+Домен приводится к «каноническому» виду,
+путь – «поглощающий»
+
+Небольшой размер -
+4096 байт на cookie (имя+значение+атрибуты),
+по крайней мере 50 cookies на домен,
+по крайней мере 3000 cookies всего
+				</section>
+
+				<section data-markdown>
+### Зачем и как использовать
+
+В пределах домена
+* http-сессия (связанные запросы)
+* сохраняемые на клиенте данные (корзина)
+  - сейчас есть API localStorage
+
+```
+&lt;?php session_start();
+if (!isset($_SESSION['time'])) {
+    $_SESSION['time'] = date("H:i:s");
+}
+echo $_SESSION['time'];
+```
+
+```
+Set-Cookie: PHPSESSID=dap83arr6r3b56e0q7t5i0qf91; path=/
+```
+				</section>
+
+				<section data-markdown>
+### Авторизационная кука
+
+Ввели на сайте логин-пароль один раз, сервер установил Cookie
+
+При повторном открытии сайта нас уже знают
+* примеры - почта, VK, и т.д.
+* в профиле обычно есть список сеансов
+
+Проблемы
+* можно украсть
+* CSRF (подделка HTTP-запросов)
+				</section>
+
+				<section data-markdown>
+### Cross-Site Request Forgery
+
+Уязвимость «подделка HTTP-запросов»
+* вид атаки, использующий функцию браузера по автоматической отправке идентификатора сессии с каждым GET/POST-запросом к веб-приложению
+
+Сложности при автоматизированном обнаружении, однако эта ошибка встречается во многих веб-приложениях
+				</section>
+
+				<section data-markdown>
+### CSRF: как это работает
+
+Пусть наш банк имеет API :) http://example.com/app/transferFunds?amount=1500&destAccount=12345
+
+Разместим где-нибудь картинку ... PROFIT !
+```
+&lt;img src="http://example.com/app/transferFunds?
+	amount=1500&destAccount=12345"/&gt;
+```
+
+А можно просто «от имени пользователя» голосовать ВКонтакте
+
+Читали историю «The Spider of Doom»?
+www.thedailywtf.com/articles/The_Spider_of_Doom
+				</section>
+
+				<section data-markdown>
+### CSRF: как бороться?
+
+Уникальный непредсказуемый токен в каждом HTTP-запросе
+в скрытом поле формы, CMS часто автоматически включают в URL
+
+Привязка cookie к IP/браузеру и др. 
+
+Требование повторной аутентификации при подозрениях, и CAPTCHA
+
+[OWASP/CSRF_Prevention_Cheat_Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
+
+> Верить в наше время нельзя никому, порой даже самому себе (Мюллер)
+				</section>
+
+				<section data-markdown>
+### Cookie: как использовать
+
+За пределами домена - счётчик, сервисы «Яндекс.Вебмастер», «Google Analytics» 
+![](images/http-cookies-stat.png)
+![](images/http-cookies-counter.png)
+![](images/http-cookies-referer.png)
+				</section>
+
+				<section data-markdown>
+### Cookie и приватность
+
+[Директивы Евросоюза](https://www.cookiechoices.org/intl/ru/)
+
+Хранение данных (в том числе cookie) может осуществляться если:
+* пользователю предоставляется информация, как эти данные используются
+* пользователь имеет возможность отказаться от этого
+				</section>
+
+				<section data-markdown>
+## Проверка подлинности в HTTP
+				</section>
+
+				<section data-markdown>
+### Аутентификация
+
+RFC 7235 Hypertext Transfer Protocol: Authentication
+
+Схемы проверки подлинности
+
+Встроенные в протокол
+* RFC 2617 - Basic и Digest
+* RFC 4559 - Negotiate (не рекомендуется)
+
+Внешние
+* RFC 5849 - OAuth 
+* RFC 6749 - OAuth 2.0
+* OpenID, OopenID Connect
+				</section>
+
+				<section data-markdown>
+### Challenge / Response
+
+```
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Basic realm="simple"
+	Newauth realm="admin", type=1,
+	title="Login to \"admin\"",
+```
+
+```
+GET /protected/ HTTP/1.1
+Authorization: схема реквизиты_доступа
+```
+
+Аналогично
+```
+HTTP/1.1 407 Proxy Authentication Required
+```
+				</section>
+
+				<section data-markdown>
+### Схема Basic
+
+Применять только через https !
+
+```
+WWW-Authenticate: Basic realm="admin"
+```
+Строка из Realm обычно показывается пользователю
+
+```
+Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==
+```
+Base64 (Aladdin:open sesame)
+
+Клиент автоматически отправит заголовок Authorization, если код 401 и совпадает домен и realm
+				</section>
+
+				<section data-markdown>
+### Схема Digest
+
+```
+WWW-Authenticate: Digest digest-challenge
+```
+
+```
+digest-challenge = realm [domain] nonce [opaque]
+	[stale] [algorithm] [qop-options] [auth-param]
+```
+
+В простейшем случае («качество защиты» QoP не определено)
+$$ 𝐻𝐴1=𝑀𝐷5(𝐴1)=𝑀𝐷5(𝑢𝑠𝑒𝑟𝑛𝑎𝑚𝑒:𝑟𝑒𝑎𝑙𝑚:𝑝𝑎𝑠𝑠𝑤𝑜𝑟𝑑) $$
+
+$$ 𝐻𝐴2=𝑀𝐷5(𝐴2)=𝑀𝐷5(𝑚𝑒𝑡ℎ𝑜𝑑:𝑑𝑖𝑔𝑒𝑠𝑡𝑈𝑅𝐼) $$
+$$ 𝑟𝑒𝑠𝑝𝑜𝑛𝑠𝑒=𝑀𝐷5(𝐻𝐴1:𝑛𝑜𝑛𝑐𝑒:𝐻𝐴2) $$
+				</section>
+
+				<section data-markdown>
+### Схема Digest
+
+
+```
+digest-challenge = realm [domain] nonce [opaque]
+	[stale] [algorithm] [qop-options] [auth-param]
+```
+
+Если QoP = auth-int
+$$ 𝑟𝑒𝑠𝑝𝑜𝑛𝑠𝑒=𝑀𝐷5(𝐻𝐴1:𝑛𝑜𝑛𝑐𝑒:𝑛𝑜𝑛𝑐𝑒𝐶𝑜𝑢𝑛𝑡: $$ $$ 𝑐𝑙𝑖𝑒𝑛𝑡𝑁𝑜𝑛𝑐𝑒:𝑞𝑜𝑝:𝐻𝐴2)$$
+				</section>
+
+				<section data-markdown>
+### Схема Digest
+
+```
+GET /dir/index.html HTTP/1.1
+
+HTTP/1.1 401 Unauthorized
+WWW-Authenticate: Digest
+	realm="testrealm@host.com",
+	qop="auth,auth-int",
+	nonce="dcd98b7102dd2f0e8b11d0f600bfb0c093",
+	opaque="5ccc069c403ebaf9f0171e9517f40e41“
+
+GET /dir/index.html HTTP/1.1
+Authorization: Digest username="Mufasa",
+	realm="testrealm@host.com",
+	nonce="dcd98b7102dd2f0e8b11d0f600bfb0c093",
+	uri="/dir/index.html",
+	qop=auth,
+	nc=00000001,
+	cnonce="0a4f113b",
+	response="6629fae49393a05397450978507c4ef1",
+	opaque="5ccc069c403ebaf9f0171e9517f40e41"
+```
+				</section>
+
+				<section data-markdown>
+### Возможные атаки
+
+Replay Attacks
+* nonce может основываться на IP клиента, дате, Etag и private server key
+
+Man in the Middle
+* Например, прокси может оставить только Basic-проверку
+
+Dictionary / Rainbow tables / Brute force
+
+Не храним пароль в plaint text ?
+				</section>
+
+				<section data-markdown>
+## Внешние сервисы
+				</section>
+
+				<section data-markdown>
+![](images/http-auth-traditional.jpg) традиционно
+
+![](images/http-auth-openid.jpg) внешний сервис
+				</section>
+
+				<section data-markdown>
+### OpenID
+
+Стандарт децентрализованной системы аутентификации
+* OpenID 1.1
+* OpenID 2.0
+* OpenID Connect
+
+[OpenId Specifications](openid.net/developers/specs),
+[Google/identity](developers.google.com/identity)
+				</section>
+
+				<section data-markdown>
+### OAuth
+
+Протокол авторизации, позволяет предоставить третьей стороне ограниченный доступ к защищённым ресурсам без необходимости передавать ей (третьей стороне) логин и пароль
+
+Результат авторизации - access token (набор символов), предъявление которого является пропуском к защищенным ресурсам
+
+Обращение к ним по HTTPS с указанием в заголовках или в качестве одного из параметров полученного access token
+				</section>
+
+				<section data-markdown>
+### OAuth
+
+Далее под Oauth понимается версия 2
+
+[RFC 6749](https://tools.ietf.org/html/rfc6749) OAuth 2.0 Framework
+
+[RFC 8252](https://tools.ietf.org/html/rfc8252) OAuth 2.0 for Native Apps
+
+Список стандартов - [oauth.net/2](https://oauth.net/2/)
+
+Примеры:
+* [yandex.ru/dev/passport](https://yandex.ru/dev/passport/)
+* [vk.com/dev/access_token](https://vk.com/dev/access_token)
+
+Note:
+https://habr.com/ru/post/115163/
+				</section>
+
+				<section data-markdown>
+### Роли OAuth
+
+OAuth определяет четыре роли
+* Владелец ресурса - пользователь
+* Клиент - приложение
+  - доступ приложения ограничен областью видимости (scope) 
+* Сервер ресурсов, Resource Server (Provider)
+  - предоставляет API
+* Авторизационный сервер 
+  - часто совпадает с сервером ресурсов
+				</section>
+
+				<section data-markdown>
+![](images/oauth-abstract.png)
+				</section>
+
+				<section data-markdown>
+### Регистрация приложения
+
+Перед использованием OAuth нужно зарегистрировать приложение в сервисе (RS, AS),
+присвоить client ID, иногда client secret
+
+* Название приложения
+* Сайт приложения
+* Redirect URL / Callback URL
+  - сервис перенаправляет пользователя после авторизации (или отказа в авторизации) вашего приложения
+				</section>
+
+				<section data-markdown>
+### Области видимости
+
+Scope - набор действий и объектов
+
+OAuth не фиксирует состав действий и названия
+
+Примеры
+* [Slack](https://api.slack.com/scopes)
+  - chat:write, dnd:read, groups:history и т.д.
+* [Github](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/)
+  - repo:status, write:public_key и т.д.
+* [FitBit](https://dev.fitbit.com/build/reference/web-api/oauth2/#scope)
+  - activity, heartrate, location и т.д.
+				</section>
+
+				<section data-markdown>
+### Схемы авторизации
+
+* Authorization Code / Code Flow
+  - для приложений c серверной частью
+* [PKCE](https://tools.ietf.org/html/rfc7636), Proof Key for Code Exchange
+* Client Credentials
+* Device Code
+* Refresh Token
+  - обновление предыдущей авторизации
+* Legacy: Implicit Flow
+  - для полностью клиентских приложений
+* Legacy: Password Grant
+  - по логину и паролю
+				</section>
+
+				<section data-markdown>
+### Authorization Code / Code Flow
+
+Самый частый тип разрешения на авторизацию
+
+Хорошо подходит для серверных приложений, где исходный код приложения и секрет клиента не доступны посторонним
+
+Процесс строится на перенаправлении (redirection), HTTP 3xx
+
+Предполагается, что приложение в состоянии взаимодействовать с UA (браузером)
+и получать коды авторизации API, «слушая» Redirect URL
+				</section>
+
+				<section data-markdown>
+![](images/oauth-code-flow.png)
+				</section>
+
+				<section data-markdown>
+### Code Flow (шаги 1-3)
+
+Эти операции - на клиенте, 
+scope в примере - некий по умолчанию
+
+![](images/oauth-button.png)
+```
+GET /oauth/authorize?response_type=code&client_id=464119
+	&redirect_uri=http%3A%2F%2Fexample.com%2Fu123%2F HTTP/1.1
+Host: connect.mail.ru
+```
+
+Допустимые redirect_uri - в настройках
+```
+HTTP/1.1 302 Found
+Location: http://example.com/u123/?code=DoRieb0y
+```
+уникальный ID против CSRF-атак - u123
+				</section>
+
+				<section data-markdown>
+### Code Flow (шаги 4,5)
+
+Эти операции - на сервере
+```
+POST /oauth/token HTTP/1.1
+Host: connect.mail.ru
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&client_id=464119&client_secret=xxx&
+code=DoRieb0y&redirect_uri=http%3A%2F%2Fexample.com%2Fu123
+```
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{
+	"access_token":"SlAV32hkKG",
+	"token_type":"bearer",
+	"expires_in":3600,
+	"refresh_token":"8xLOxBtZp8",
+}
+```
+
+[Bearer Token](https://tools.ietf.org/html/rfc6750), «на предъявителя» / MAC Token
+
+				</section>
+
+				<section data-markdown>
+### использование токена
+
+```
+GET /platform/api?oauth_token=SlAV32hkKG&
+	client_id=464119&format=json&
+	method=users.getInfo&sig=... HTTP/1.1
+Host: appsmail.ru
+```
+
+Сервер ресурсов сверяет
+* срок действия токена
+* допустимость операции (соответствие scope)
+
+Токен может передаваться в заголовках, не в URL
+				</section>
+
+				<section data-markdown>
+### Зачем Refresh Token
+
+* access token - при запросах к серверу
+  - многоразовый и короткоживущий
+* refresh token - обновление access и refresh
+  - одноразовый и долгоживущий
+
+Схема refresh + access ограничивает время, на которое атакующий может получить доступ
+
+Случай 1: Боб узнал оба токена Алисы и не воспользовался refresh
+
+Случай 2: Боб узнал оба токена Алисы и воспользовался refresh
+				</section>
+
+				<section data-markdown>
+### Implicit Flow
+
+Полностью клиентские приложения
+
+Открытие браузера со страницей авторизации
+* у пользователя запрашивается подтверждение выдачи прав
+* в случае согласия пользователя, браузер редиректится на страницу-заглушку
+  - в URL после # пишется access token
+  - приложение перехватывает редирект и получает из адреса страницы access token
+				</section>
+
+				<section data-markdown>
+![](images/oauth-implicit-flow.png)
+				</section>
+
+				<section data-markdown>
+### Implicit Flow (шаги 1-3)
+
+Запрос отличается параметром response_type
+```
+GET /oauth/authorize?response_type=token&client_id=464119 HTTP/1.1
+Host: connect.mail.ru
+```
+
+Если нет redirect_uri, используется «стандартный»
+```
+HTTP/1.1 302 Found
+Location: http://connect.mail.ru/oauth/success.html
+	#access_token=FJQbwq9&token_type=bearer&
+	expires_in=3600&refresh_token=yaeFa0gu
+```
+				</section>
+
+				<section data-markdown>
+### OpenId Connect
+
+Принципиально отличается от OpenId версий 1/2
+
+[openid.net/connect](https://openid.net/connect/)
+
+Надстройка над OAuth, описаны API и scope
+
+API включает
+* Authorization endpoint
+* Token Endpoint
+* Userinfo Endpoint
+* CheckId Endpoint (необязательно)
+* Registration Endpoint (необязательно)
+				</section>
+
+				<section data-markdown>
+### Поиск настроек OpenId
+
+Получение общей информации об источнике (site-wide metadata)
+
+Ранние аналоги - [robots.txt](http://www.robotstxt.org/), метод [PROPFIND](https://tools.ietf.org/html/rfc4918)
+
+[RFC 8615](https://tools.ietf.org/html/rfc8615) Well-Known Uniform Resource Identifiers
+
+[iana.org/assignments/well-known-uris](https://www.iana.org/assignments/well-known-uris/)
+* /.well-known/acme-challenge
+* /.well-known/caldav
+* /.well-known/openid-configuration
+* /.well-known/webfinger
+				</section>
+
+				<section data-markdown>
+### WebFinger
+
+По необходимости (если известен только логин/email)
+используем WebFinger,
+[RFC 7033](https://tools.ietf.org/html/rfc7033)
+
+```
+GET /.well-known/webfinger?resource=acct%3Ajoe%40example.com&
+	rel=http%3A%2F%2Fopenid.net%2Fspecs%2Fconnect%2F1.0%2Fissuer HTTP/1.1
+Host: example.com
+```
+
+```
+HTTP/1.1 200 OK
+Content-Type: application/jrd+json
+{
+"subject": "acct:joe@example.com",
+"links":
+    [{
+    "rel": "http://openid.net/specs/connect/1.0/issuer",
+    "href": "https://server.example.com"
+    }]
+}
+```
+				</section>
+
+				<section data-markdown>
+### openid-configuration
+
+Далее - запрос к эмитенту
+```
+GET /.well-known/openid-configuration HTTP/1.1
+Host: server.example.com
+```
+
+Получаем файл конфигурации
+```
+{
+    "authorization_endpoint": "https://server.example.com/connect/authorize",
+    "issuer" : "https://server.example.com",
+    "token_endpoint": "https://server.example.com/connect/token",
+    "token_endpoint_auth_types_supported":["client_secret_basic", "private_key_jwt"],
+    "userinfo_endpoint": "https://server.example.com/connect/user",
+    "check_id_endpoint": "https://server.example.com/connect/check_id",
+    "registration_endpoint": "https://server.example.com/connect/register"
+}
+```
+				</section>
+
+				<section data-markdown>
+### особенности OIDC
+
+id_token - новый тип токена
+* Implicit: response_type=id_token (id_token%20token)
+* Code: grant_type=id_token (id_token%20token)
+
+```
+GET /authorize?grant_type=token%20id_token&scope=openid%20profile&
+	redirect_uri=https%3A%2F%2Fclient%2Eexample%2Ecom%2Fcb HTTP/1.1
+Host: server.example.com
+```
+				</section>
+
+				<section data-markdown>
+### OpenId scope
+
+Обязательный scope=openid
+* в ответе будет поле sub (Subject Identifier)
+
+Дополнительные
+* profile = name, family_name, given_name, middle_name, nickname, preferred_username, profile, picture, website, gender, birthdate, zoneinfo, locale, and updated_at.
+* email
+* phone
+				</section>
+
+				<section data-markdown>
+### JSON Web Token
+
+Ответный токен закодирован в формате JWT (JSON Web Token), [RFC 7519](https://tools.ietf.org/html/rfc7519)
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWV9.TJVA95OrM7E2cBab30RMHrHDcEfxjoYZgeFONFh7HgQ
+```
+
+Первая часть - заголовок, закодирован Base64url
+```
+{ "alg": "HS256", "typ": "JWT"}
+```
+Вторая часть - полезная нагрузка (Payload)
+```
+{
+	"sub": "1234567890",
+	"name": "John Doe",
+	"admin": true
+}
+```
+Третья часть - цифровая подпись (здесь - HS256)
+				</section>
+
+				<section data-markdown>
+### UserInfo
+
+Пример запроса вручную
+```
+curl -v -H 'Authorization: bearer ТОКЕН'
+	https://auth.usaaa.ru/auth/realms/master/protocol/openid-connect/userinfo 
+```
+
+```
+{
+	"sub":"f:a1785221-ee0b-4fc9-9c43-627b2a05d19e:Волканин Леонид Сергеевич",
+	"email_verified":true,
+	"name":"Леонид Волканин",
+	"preferred_username":"volkanin",
+	"given_name":"Леонид",
+	"family_name":"Волканин",
+	"email":"lsv@usaaa.ru"
+}
+```
+				</section>
+
+				<section data-markdown>
+# Вопросы ?
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/math/math.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
