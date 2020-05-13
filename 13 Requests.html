@@ -1,0 +1,446 @@
+<html>
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0">
+		<link rel="stylesheet" href="css/reveal.css">
+		<link rel="stylesheet" href="css/theme/white.css">
+		<style type="text/css">.reveal p { text-align: left; }</style>
+		<style type="text/css">.reveal blockquote { font-size: 50%; }</style>
+		<style type="text/css">.reveal table { font-size: 70%; }</style>
+		<style type="text/css">.reveal p img { border: 0px; }</style>
+		<style type="text/css">.reveal p.small { font-size: 80%; }</style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+
+				<section data-markdown>
+# HTTP-запросы от клиента
+
+Протоколы Интернет, лекция 13
+				</section>
+
+				<section data-markdown>
+### План
+
+* виды запроса от клиента, эмуляция браузера
+* формы html (как составить запрос)
+* алгоритм загрузки страницы
+* особенности работы с http-сервисами
+				</section>
+
+				<section data-markdown>
+### Запрос в браузере
+
+* Адресная строка
+* Закладки (избранное)
+* Forward/Backward
+* Обновление (F5/Ctrl+F5/Shift+R)
+* Различные меню
+* Вложенные ресурсы – изображения, скрипты, стили
+* Выбор гиперссылки
+* Submit (Отправить) в форме HTML
+					
+Какие различия будут в HTTP-сообщениях для разных источников?
+				</section>
+
+				<section data-markdown>
+### Эмуляция работы браузера
+
+Зачем? Автоматизация тестирования
+
+[Fiddler](https://www.telerik.com/fiddler) - запись/перехват запросов
+
+[Postman](https://www.postman.com/) - для тестирования API
+
+Библиотеки, знающие про User-Agent, Referer, Cookie и прочее
+* [github.com/symfony/browser-kit](https://github.com/symfony/browser-kit)
+* [mechanize](http://www.pythonforbeginners.com/cheatsheet/python-mechanize-cheat-sheet) для Python
+* [curl](https://www.php.net/manual/ru/book.curl.php) для PHP
+				</section>
+
+				<section data-markdown>
+### Из URL в HTTP-запрос
+
+GET-запрос для https://yandex.ru/search/?text=урфу#top  (443/tcp)
+```
+GET /search/?text=%D1%83%D1%80%D1%84%D1%83 HTTP/1.1
+Accept: text/html, application/xhtml+xml, */*
+Accept-Encoding: gzip, deflate
+Accept-Language: en-US, en; q=0.7, ru; q=0.3
+Connection: Keep-Alive
+Cookie: …
+Host: yandex.ru
+User-Agent: Mozilla/5.0 (...)
+```
+Параметры - в QueryString
+				</section>
+
+				<section data-markdown>
+### Из URL в HTTP-запрос
+
+POST-запрос для https://csp.yandex.net/csp?from=web4 (443/tcp)
+```
+POST /csp?from=web4 HTTP/1.1
+Accept: */*
+Accept-Encoding: gzip, deflate
+Accept-Language: en-US, en; q=0.7, ru; q=0.3
+Connection: Keep-Alive
+Content-Length: 145
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+Host: csp.yandex.net
+User-Agent: …
+
+yandex_login=volkanin&yandexuid=2416173841462898161&…
+```
+Параметры - в теле запроса
+
+Может быть одновременно и QueryString и тело?
+				</section>
+
+				<section data-markdown>
+### URLEncode
+
+[RFC 3968](https://tools.ietf.org/html/rfc3986#section-2.1) - Uniform Resource Identifier
+
+Зарезервированные символы
+```
+     !   #   $   %   &   '   (   )   *   +   ,   /   :   ;   =   ?   @   [   ]
+%20 %21 %23 %24 %25 %26 %27 %28 %29 %2A %2B %2C %2F %3A %3B %3D %3F %40 %5B %5D
+```
+				</section>
+
+				<section data-markdown>
+## Формы HTML
+
+[HTML Elements](https://raw.githack.com/volkanin/web-dhtml/master/02-HTML%20Elements.html?full#36)
+				</section>
+
+				<section data-markdown>
+### Алгоритм загрузки страницы
+
+Пишем в строке браузера http://urfu.ru
+
+Какой будет порядок действий? 
+С одной стороны
+
+![](images/http-sequence.png)
+
+На самом деле всё сложнее…
+				</section>
+
+				<section data-markdown>
+### Установка соединения
+
+С каким сервером устанавливаем соединение?
+Вроде бы очевидно
+```
+$ host urfu.ru
+urfu.ru has address 93.88.179.200
+```
+
+![](images/http-sock1.png)
+![](images/http-sock2.png)
+
+Но даже если выключить антивирус, не всё очевидно
+				</section>
+
+				<section data-markdown>
+### Прокси в браузере
+
+![](images/http-proxy1.png)
+				</section>
+
+				<section data-markdown>
+![](images/http-proxy2.png)
+				</section>
+
+				<section data-markdown>
+### Авто-определение настроек
+
+WPAD, Web Proxy Auto-Discovery Protocol - механизм обнаружения прокси через специальное сетевое имя
+
+Первый вариант – поиск в DNS 
+```
+>nslookup wpad
+Name:    wpad.usaaa.ru
+Address:  10.0.0.1
+```
+
+Второй вариант – опция 252 DHCP со строковым значением вида http://ServerName:PortNumber/wpad.dat
+				</section>
+
+				<section data-markdown>
+### Механизм WPAD
+
+WPAD служит для того, чтобы найти файл PAC (Proxy Auto Config) - JavaScript с описанием логики, по которой браузер будет определять, как подключаться к нужному URL
+
+[WPAD: инструкция по эксплуатации](https://habr.com/ru/company/mailru/blog/259521/)
+				</section>
+
+				<section data-markdown>
+### Пример PAC
+
+```
+function FindProxyForURL(url, host)
+{
+if (isInNet(host, "10.0.0.0", "255.0.0.0"))
+	return "DIRECT";
+if (host == "google.com") {
+	return "PROXY evilhacker:8080";
+
+return "PROXY proxy.usaaa.ru:3128";
+}
+```
+
+Адрес PAC-скрипта можно прописать в настройках прокси браузера в явном виде
+				</section>
+
+				<section data-markdown>
+					<script type="text/template">
+### Алгоритм загрузки страницы
+
+* Запрос / редиректы 
+* Получение HTML
+* Парсинг, запрос файлов
+* Рендеринг и отрисовка
+
+![](images/html-render.png)<!-- .element: width="30%" -->
+					</script>
+				</section>
+
+				<section data-markdown>
+## HTTP и веб-сервисы
+				</section>
+
+				<section data-markdown>
+### REST
+
+REpresentational State Transfer
+* Рой Филдинг - Architectural Styles and the Design of Network-based Software Architectures
+* не процедуру вызывать и передавать ей объект, а обращаться к объекту и изменять его состояние
+
+REST – не протокол и не стандарт, а архитектурный стиль, описывает использование методов HTTP для операций (CRUD) и рекомендации по построению URI
+				</section>
+
+				<section data-markdown>
+### REST: методы HTTP
+
+| CRUD   | SQL    | REST   |
+|--------|--------|--------|
+| CREATE | INSERT | POST   |
+| READ   | SELECT | GET    |
+| UPDATE | UPDATE | PUT    |
+| DELETE | DELETE | DELETE |
+
+* HEAD - получить метаданные
+* OPTIONS - что можно делать
+* TRACE - отладка
+				</section>
+
+				<section data-markdown>
+### REST: дизайн URI
+
+| URI      | метод HTTP | действие                     |
+|----------|------------|------------------------------|
+| /books/  | GET        | получить все книги           |
+| /books/3 | GET        | данные о книге с id=3        |
+| /books/  | POST       | добавить книгу               |
+| /books/4 | PUT        | отредактировать книгу с id=4 |
+| /books/5 | DELETE     | удалить книгу (иногда - PUT с пометкой удаления |
+				</section>
+
+				<section data-markdown>
+### REST: запрос/ответ
+
+```
+POST /books/ HTTP/1.1
+Content-Type: application/json
+
+{ "title": "RESTful Web Services"; "author": "Leonard Richardson, Sam Ruby"}
+```
+
+```
+HTTP/1.1 201 Created
+Location: /books/100500
+```
+				</section>
+
+				<section data-markdown>
+### RESTful веб-сервисы
+
+* Give every "thing" an ID
+* Uniform Interface (для всех методов HTTP)
+* Resources can have multiple representations - одни и те же данные можно вернуть в XML / JSON / HTML для человека. MIME-типы.
+* Link things together
+* Communicate statelessly
+				</section>
+
+				<section data-markdown>
+### Использование REST: OData
+
+Open Data Protocol (odata.org) - один из примеров стандартизованного интерфейса
+
+«Трансляция» SQL на REST
+
+http://services.odata.org/V4/OData/OData.svc/Products?filter=Rating+eq+3&select=Rating,+Name
+				</section>
+
+				<section data-markdown>
+### Использование REST: SPA
+
+Single Page Application
+
+Обмен данными с сервером без перезагрузки страницы
+* фреймворки Angular, Vue.js и пр. 
+* [сетевые интерфейсы](https://learn.javascript.ru/network) JavaScript
+  - XMLHttpRequest
+  - Fetch
+  - FormData
+  - WebSocket
+				</section>
+
+				<section data-markdown>
+### Same Origin Policy
+
+Принцип одинакового источника
+* разрешает сценариям одного сайта доступ к методам и свойствам друг друга
+* предотвращает доступ для страниц на разных сайтах
+
+Одинаковые источники - совпадают домен, порт, протокол.
+Со страницы http://site.com нельзя сделать запрос на адрес https://site.com, http://site.com:8080 или http://othersite.com
+				</section>
+
+				<section data-markdown>
+					<script type="text/template">
+### Same Origin Policy
+
+Запросим с текущей страницы данные https://urfu.ru/entry/programs.json
+
+Откройте консоль и проверьте
+<button onclick="var xhttp = new XMLHttpRequest(); xhttp.open('GET','https://urfu.ru/entry/programs.json',false);xhttp.send();alert(xhttp.responseText)">Проверить</button>
+					</script>
+				</section>
+
+				<section data-markdown>
+### Причина ограничения - XSS
+
+Cross Site Scripting (XSS) - межсайтовое выполнение сценариев
+
+Передача серверу HTML-кода, содержащего сценарии, которые впоследствии выполняются браузером клиента
+
+```
+/search?q="&gt;&lt;script&gt;alert('XSS')&lt;/script&gt;
+```
+
+```
+"&gt;&lt;script src=http://host/script.js&gt;&lt;/script&gt;
+```
+
+Если искомая строка выводится без обработки
+```
+&lt;input type="text" name="q" value=""&gt;&lt;script&gt;alert('XSS')</script>"&gt;
+```
+				</section>
+
+				<section data-markdown>
+					<script type="text/template">
+### Cross-Origin Resource Sharing
+
+[CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS),
+запрос включает заголовок
+```
+Origin: http://site.com
+```
+
+ответ может разрешить браузеру отдать содержимое сценарию JavaScript
+```
+Access-Control-Allow-Origin: http://site.com
+```
+
+```
+Access-Control-Allow-Origin: *
+```
+
+Запрос можно сделать так
+```
+var xhttp = new XMLHttpRequest();
+xhttp.open("GET","https://api.github.com/users/volkanin/repos", false);	// sync
+xhttp.send();
+```
+<button onclick="var xhttp = new XMLHttpRequest(); xhttp.open('GET','https://api.github.com/users/volkanin/repos',false);xhttp.send();alert(xhttp.responseText)">Проверить</button>
+					</script>
+				</section>
+				
+				<section data-markdown>
+### Заголовки безопасности
+
+Проверить нужные HTTP-заголовки:
+
+https://securityheaders.io/
+
+https://observatory.mozilla.org/
+				</section>
+				
+				<section data-markdown>
+### Content-Security-Policy
+
+Если сайт скомпрометирован, [CSP](https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP) помогает ограничить ущерб, предотвращая подключения к неодобренным хостам
+
+Очень важный заголовок и один из самых многословных (несколько килобайт)
+
+```
+# Default to only allow content from the current site
+# Allow images from current site and imgur.com
+# Don't allow objects such as Flash and Java
+# Only allow scripts from the current site
+# Only allow styles from the current site
+# Only allow frames from the current site
+# Restrict URL's in the <base> tag to current site
+# Allow forms to submit only to the current site
+Content-Security-Policy: default-src 'self'; img-src 'self' https://i.imgur.com; object-src 'none'; script-src 'self'; style-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self';
+```
+				</section>
+				
+				<section data-markdown>
+### Referrer-Policy
+
+Referer - способ отслеживать перемещения пользователей между страницами в инструментах аналитики, а также понять происхождение входящего трафика
+
+Знание полного URL (включая аргументы запроса), может раскрыть последнтй поисковый запроса или личные данные, такие как адрес электронной почты
+
+Например, [Referrer-Policy](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Referrer-Policy): origin-when-cross-origin
+				</section>
+				
+				<section data-markdown>
+### Strict-Transport-Security
+
+Предотвращает любые попытки подключения к сайту по обычному HTTP,
+помогает остановить MiTM-атаки и повышает безопасность сайта
+
+Например, [Strict-Transport-Security](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security): max-age=3600; includeSubDomains
+				</section>
+
+				<section data-markdown>
+# Вопросы ?
+				</section>
+
+			</div>
+		</div>
+		<script src="js/reveal.js"></script>
+		<script>
+			Reveal.initialize({
+				hash: true,
+				slideNumber: true,
+				center: false,
+				dependencies: [
+					{ src: 'plugin/markdown/marked.js' },
+					{ src: 'plugin/markdown/markdown.js' },
+					{ src: 'plugin/math/math.js', async: true },
+					{ src: 'plugin/notes/notes.js', async: true },
+					{ src: 'plugin/highlight/highlight.js', async: true }
+				]
+			});
+		</script>
+	</body>
+</html>
